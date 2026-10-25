@@ -58,20 +58,54 @@ import androidx.compose.runtime.mutableIntStateOf
 import com.yetvplus.nativeapp.ui.PlayerArgs
 import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.mutableStateListOf
+import com.yetvplus.nativeapp.data.DoubanItem
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
     val context = LocalContext.current
     val group = NavArgs.group
+    val douban = NavArgs.douban
+    val fallbackVideo = NavArgs.video ?: VideoItem()
     // 当前选中的源；有多个源时可切换
     var variantIndex by remember { mutableIntStateOf(0) }
-    val variants = group?.variants ?: listOf(NavArgs.video ?: VideoItem())
-    val base = variants.getOrNull(variantIndex) ?: NavArgs.video ?: VideoItem()
+    // 用可变列表：从首页海报进来时还没有源，解析完再填进来
+    val variants = remember {
+        mutableStateListOf<VideoItem>().apply { group?.variants?.let { addAll(it) } }
+    }
+    val base = variants.getOrNull(variantIndex) ?: fallbackVideo
     var info by remember { mutableStateOf(DetailInfo(base)) }
-    var loading by remember { mutableStateOf(true) }
+    var loading by remember { mutableStateOf(variants.isEmpty()) }
     var error by remember { mutableStateOf("") }
 
-    LaunchedEffect(base.key) {
+    // 首页海报直达：此时只有标题和海报，用它去解析出各源条目（异步，不阻塞框架渲染）
+    LaunchedEffect(Unit) {
+        if (variants.isNotEmpty()) return@LaunchedEffect
+        val q = douban?.title?.ifEmpty { fallbackVideo.title } ?: fallbackVideo.title
+        if (q.isBlank()) {
+            loading = false
+            error = "缺少标题，无法解析播放源"
+            return@LaunchedEffect
+        }
+        loading = true
+        val gs = runCatching { app.repo.searchGrouped(q, app.prefs.mergeSearch) }
+            .getOrDefault(emptyList())
+        loading = false
+        if (gs.isNotEmpty()) {
+            variants.addAll(gs.first().variants)
+            val v0 = gs.first().best
+            info = DetailInfo(
+                v0.copy(poster = v0.poster.ifEmpty { douban?.poster ?: "" }),
+                v0.episodes
+            )
+        } else {
+            error = "未解析到播放源"
+        }
+    }
+
+    LaunchedEffect(base.key, variants.size) {
+        // 还没解析出源（首页海报直达时正在搜索）：先别报"缺少 source/id"
+        if (variants.isEmpty()) return@LaunchedEffect
         // 切源时也要有明确反馈：先显示加载中，再出结果
         loading = true
         // 抓包确认：搜索结果已带完整 m3u8 分集，直接用，省掉一次详情请求
@@ -101,7 +135,8 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
     }
 
     val item = info.item
-    val poster = item.poster.ifEmpty { base.poster }
+    val poster = item.poster.ifEmpty { base.poster }.ifEmpty { douban?.poster ?: "" }
+    val showTitle = item.title.ifEmpty { base.title }.ifEmpty { douban?.title ?: "" }
     // 分集可能挂在 base 上（搜索结果自带），也可能来自详情
     val episodes = info.episodes.ifEmpty { base.episodes }
 
@@ -116,7 +151,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = TextPrimary)
             }
             Text(
-                item.title.ifEmpty { base.title },
+                showTitle,
                 color = TextPrimary,
                 fontSize = 17.sp,
                 maxLines = 1
@@ -142,7 +177,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                 )
                 Column(modifier = Modifier.padding(start = 12.dp)) {
                     Text(
-                        item.title.ifEmpty { base.title },
+                        showTitle,
                         color = TextPrimary, fontSize = 16.sp
                     )
                     val meta = listOfNotNull(
@@ -191,7 +226,10 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                         SourceSwitchBar(
                             variants = variants,
                             current = variantIndex,
-                            onPick = { variantIndex = it }
+                            onPick = {
+                                variantIndex = it
+                                loading = true
+                            }
                         )
                     }
                     EpisodeSection(
@@ -209,7 +247,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                             putExtra("videoKey", base.key)
                             putExtra("total", episodes.size)
                             putExtra("poster", item.poster.ifEmpty { base.poster })
-                            PlayerArgs.variants = variants
+                            PlayerArgs.variants = variants.toList()
                         }
                         context.startActivity(i)
                     }

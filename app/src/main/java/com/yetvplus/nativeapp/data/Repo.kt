@@ -108,7 +108,8 @@ class Repo(private val api: ApiClient, private val prefs: Prefs) {
     }
 
     suspend fun categories(): List<Category> = withContext(Dispatchers.IO) {
-        Mapping.parseCategories(api.get("/api/config/custom_category"))
+        // /api/config/custom_category 实测 404，改从管理配置读 Config.CustomCategories
+        Mapping.parseCategories(api.get("/api/admin/config"))
     }
 
     /**

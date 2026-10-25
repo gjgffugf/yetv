@@ -304,7 +304,8 @@ object Mapping {
                         name = pick(so, "name", "title"),
                         api = pick(so, "api", "url"),
                         detail = pick(so, "detail"),
-                        enabled = asBool(so, "enabled", "enable", default = true)
+                        // 抓包确认字段是 disabled（不是 enabled），要取反
+                        enabled = !asBool(so, "disabled", default = false)
                     )
                 )
             }
@@ -326,17 +327,17 @@ object Mapping {
     }
 
     fun parseCategories(root: JsonElement?): List<Category> {
+        // 抓包确认：/api/config/custom_category 是 404，真实字段是
+        // Config.CustomCategories（注意是 Categories 复数）
         val arr = when {
             root == null || root.isJsonNull -> return emptyList()
             root.isJsonArray -> root.asJsonArray
             else -> {
-                val o = root.asJsonObject
-                when {
-                    o.has("custom_category") -> o.get("custom_category")
-                    o.has("categories") -> o.get("categories")
-                    o.has("data") -> o.get("data")
-                    else -> return emptyList()
-                }
+                val hit = findNode(
+                    root,
+                    setOf("CustomCategories", "custom_category", "customCategory", "categories")
+                )
+                if (hit != null && hit.isJsonArray) hit.asJsonArray else return emptyList()
             }
         }
         if (!arr.isJsonArray) return emptyList()
@@ -496,13 +497,15 @@ object Mapping {
     fun parseSiteConfig(root: JsonElement?): SiteConfig {
         if (root == null || !root.isJsonObject) return SiteConfig()
         val top = root.asJsonObject
-        val sc = if (top.has("SiteConfig") && top.get("SiteConfig").isJsonObject) {
-            top.getAsJsonObject("SiteConfig")
-        } else {
-            top
-        }
-        // StorageType 是平铺在顶层的，登录表单要靠它决定要不要用户名
+        // 抓包确认：管理接口返回 { Role, Config: { SiteConfig: {...} } }，
+        // SiteConfig 嵌在 Config 里，不在顶层 —— 之前只在顶层找，所以公告一直取不到。
+        // /api/server-config 则是平铺的 { SiteName, StorageType, ... }，两种都要兼容。
+        val sc = findNode(top, setOf("SiteConfig", "siteConfig"))
+            ?.takeIf { it.isJsonObject }?.asJsonObject
+            ?: top
+        // StorageType 在 server-config 里是平铺顶层的，登录表单靠它判断要不要用户名
         val storageType = pick(top, "StorageType", "storageType", "NEXT_PUBLIC_STORAGE_TYPE")
+            .ifEmpty { pick(sc, "StorageType", "storageType") }
         return SiteConfig(
             siteName = pick(sc, "SiteName", "siteName", "name", "SITE_NAME"),
             announcement = pick(sc, "Announcement", "announcement"),

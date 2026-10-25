@@ -81,6 +81,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.yetvplus.nativeapp.data.DoubanItem
 
 object Route {
     const val LOGIN = "login"
@@ -98,6 +99,9 @@ object NavArgs {
 
     /** 搜索整合后的分组；非空时详情页/播放页可横向切源 */
     var group: SearchGroup? = null
+
+    /** 从首页海报点进来的豆瓣条目（此时还没有 source/id，详情里再解析） */
+    var douban: DoubanItem? = null
 }
 
 /** 传给播放页的额外参数 */
@@ -186,15 +190,18 @@ private fun AppRoot() {
                         LoginScreen(app, onSuccess = enterHome)
                     }
                     composable(Route.HOME) {
-                        HomeScreen(app) { v ->
-                            NavArgs.video = v
-                            NavArgs.group = SearchGroup(v.title, v.poster, listOf(v))
+                        // 海报点击直达详情，不等搜索结果：先渲染框架，详情内部再异步解析源
+                        HomeScreen(app) { d ->
+                            NavArgs.douban = d
+                            NavArgs.group = null
+                            NavArgs.video = VideoItem(title = d.title, poster = d.poster)
                             navController.navigate(Route.DETAIL)
                         }
                     }
                     composable(Route.SEARCH) {
                         SearchScreen(app) { g ->
                             NavArgs.group = g
+                            NavArgs.douban = null
                             NavArgs.video = g.best
                             navController.navigate(Route.DETAIL)
                         }
@@ -214,6 +221,7 @@ private fun AppRoot() {
                                     poster = r.poster
                                 )
                                 NavArgs.video = v
+                                NavArgs.douban = null
                                 NavArgs.group = SearchGroup(v.title, v.poster, listOf(v))
                                 navController.navigate(Route.DETAIL)
                             },
@@ -317,15 +325,31 @@ private fun GlassDock(
                             while (true) {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 val slop = viewConfiguration.touchSlop
+                                // 记录这次按下是怎么结束的：抬起 / 移动出容差
+                                var released = false
+                                var moved = false
                                 // 等 350ms：期间若抬起或移动超出容差就不算长按
                                 val isLongPress = withTimeoutOrNull(LONG_PRESS_MS) {
                                     while (true) {
                                         val e = awaitPointerEvent()
                                         val c = e.changes.firstOrNull { it.id == down.id } ?: break
-                                        if (!c.pressed) break
-                                        if ((c.position - down.position).getDistance() > slop) break
+                                        if (!c.pressed) { released = true; break }
+                                        if ((c.position - down.position).getDistance() > slop) {
+                                            moved = true
+                                            break
+                                        }
                                     }
                                 } == null
+
+                                // 短按（未超时、未移出容差、原地抬起）＝点击切换
+                                if (!isLongPress && released && !moved) {
+                                    val x = down.position.x
+                                    if (x in 0f..widthPx) {
+                                        val t = tabs[idxAt(x)]
+                                        if (t.route != routeState.value) onSelect(t.route)
+                                    }
+                                    continue
+                                }
                                 if (!isLongPress) continue
                                 // 长按成立：滑块放大提示，之后拖动实时切页
                                 dragging = true

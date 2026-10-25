@@ -185,6 +185,42 @@
 ### 用法
 管理面板 → 诊断 → 看哪个接口是 404 / 401 / 200 以及具体返回内容 → 点「复制」发给开发者校准字段。
 
+
+## 二·十二、按真实抓包校准（关键）
+
+用户提供了 `/api/admin/config` 的完整响应，据此修正了多处字段/路径错误。
+
+### 真实结构
+```
+GET /api/admin/config  200
+{ "Role": "owner",
+  "Config": {
+    "SiteConfig": { "SiteName": "YETVPLUS", "Announcement": "欢迎!\n...", ... },
+    "UserConfig": { "Users": [ { "username": "ye", "role": "owner", "banned": false } ] },
+    "SourceConfig": [ { "key","name","api","detail","from","disabled","weight" }, ... ],
+    "CustomCategories": []
+  } }
+
+GET /api/server-config  200     { SiteName, StorageType, Version, homeBackgroundImage ... }
+GET /api/config/sources         404
+GET /api/config/custom_category 404
+```
+
+### 据此修正
+| 位置 | 之前（错） | 现在（对） |
+|---|---|---|
+| `parseSiteConfig` | 只在顶层找 `SiteConfig` | 全树搜 `Config.SiteConfig`（公告就在这里） |
+| `parseSources` | 读 `enabled` | 真实字段是 **`disabled`**，取反 |
+| `parseCategories` | 找 `custom_category` | 真实字段是 **`CustomCategories`** |
+| `Repo.categories()` | 打 `/api/config/custom_category`（404） | 改读 `/api/admin/config` |
+| 首页海报点击 | 先 `search(title)` 再跳转（等 2~5 秒） | **直达详情**，详情内异步解析源 |
+| 详情页 | 只认已有的 group | 支持只有标题+海报时异步解析出各源 |
+| Dock | 只支持长按拖动 | **点击也能切换**（短按切页），长按 350ms 后拖动 |
+
+### 性能
+首页海报点击从「等 2~5 秒才跳转」变为「立即进详情页」，
+详情框架（海报/标题/简介）先渲染，集数区域显示加载动画，源解析完再填充。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

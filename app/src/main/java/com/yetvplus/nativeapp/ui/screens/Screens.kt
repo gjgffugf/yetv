@@ -102,7 +102,7 @@ private val TV_TAGS = listOf(
 )
 
 @Composable
-fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
+fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
     var mediaType by remember { mutableIntStateOf(0) } // 0 电影 1 剧集
     var tagIndex by remember { mutableIntStateOf(0) }
     val items = remember { mutableStateListOf<DoubanItem>() }
@@ -197,19 +197,12 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = LocalBrand.current)
                 ) { Text("重试") }
             }
+            // 点击海报直接进详情，不在这里先搜索（那样要等 2~5 秒才跳转）
             else -> DoubanGrid(
                 items = items,
                 onLoadMore = { if (!loadingMore) { page += 1; load(reset = false) } },
                 loadingMore = loadingMore
-            ) { d ->
-                scope.launch {
-                    val list = runCatching { app.repo.search(d.title) }.getOrNull() ?: emptyList()
-                    if (list.isNotEmpty()) {
-                        val v = list.firstOrNull { it.title == d.title } ?: list.first()
-                        onOpen(v.copy(poster = v.poster.ifEmpty { d.poster }))
-                    }
-                }
-            }
+            ) { d -> onOpen(d) }
         }
         }
     }
