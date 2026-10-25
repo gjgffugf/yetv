@@ -11,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.toHttpUrl
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -106,7 +107,8 @@ class ApiClient(private val context: Context) {
     // ---------------- GET ----------------
 
     fun get(path: String, params: Map<String, String> = emptyMap()): JsonElement? {
-        val httpUrl = HttpUrl.parse(url(path)) ?: return null
+        // OkHttp 4 用扩展函数 toHttpUrl()，HttpUrl.parse() 已废弃为 error
+        val httpUrl = runCatching { url(path).toHttpUrl() }.getOrNull() ?: return null
         val builder = httpUrl.newBuilder()
         for ((k, v) in params) builder.addQueryParameter(k, v)
 

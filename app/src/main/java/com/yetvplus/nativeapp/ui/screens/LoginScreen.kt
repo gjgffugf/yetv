@@ -58,7 +58,7 @@ import kotlinx.coroutines.launch
 /**
  * 登录页（启动门）。
  *
- * 站点的 middleware 会保护所有 /api/*，未登录返回 401，
+ * 站点的 middleware 会保护所有 api 接口，未登录返回 401，
  * 所以必须先拿到 auth cookie 才能用搜索、详情等功能。
  *
  * localstorage 模式 → 只输密码；数据库模式 → 用户名 + 密码。

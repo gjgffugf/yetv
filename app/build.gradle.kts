@@ -55,6 +55,12 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        // material3 的部分 API（如 TextFieldDefaults.outlinedTextFieldColors、Slider）
+        // 仍标记为 @ExperimentalMaterial3Api，全局放行，免得逐个文件加注解
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi"
+        )
     }
 
     buildFeatures {
