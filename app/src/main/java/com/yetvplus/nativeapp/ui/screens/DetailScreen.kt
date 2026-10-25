@@ -52,6 +52,7 @@ import com.yetvplus.nativeapp.ui.theme.Surface
 import com.yetvplus.nativeapp.ui.theme.SurfaceLight
 import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.LocalBrand
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
@@ -173,9 +174,8 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                         modifier = Modifier.padding(vertical = 14.dp))
                 }
                 episodes.isNotEmpty() -> {
-                    SectionTitle("选集（${episodes.size}）")
-                    EpisodeGrid(
-                        list = episodes,
+                    EpisodeSection(
+                        episodes = episodes,
                         finished = { i -> app.prefs.isFinished(base.key, i) },
                         progress = { i -> app.prefs.getProgress(base.key, i) }
                     ) { index ->
@@ -188,6 +188,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                             putExtra("title", item.title.ifEmpty { base.title })
                             putExtra("videoKey", base.key)
                             putExtra("total", episodes.size)
+                            putExtra("poster", item.poster.ifEmpty { base.poster })
                         }
                         context.startActivity(i)
                     }
@@ -207,54 +208,6 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
  * 选集网格。
  * - 没看过：默认灰底
  * - 看过没看完：底色 + 从左到右按比例填充的进度条
- * - 看完：整块换色（Brand 实色）
+ * - 看完：整块换色（LocalBrand.current 实色）
  */
-@Composable
-private fun EpisodeGrid(
-    list: List<com.yetvplus.nativeapp.data.Episode>,
-    finished: (Int) -> Boolean,
-    progress: (Int) -> Float,
-    onClick: (Int) -> Unit
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(4),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(((list.size / 4 + 1) * 46).coerceAtMost(300).dp),
-        contentPadding = PaddingValues(0.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        itemsIndexed(list) { i, ep ->
-            val done = finished(i)
-            val p = if (done) 1f else progress(i).coerceIn(0f, 1f)
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (done) Brand else SurfaceLight)
-                    .clickable { onClick(i) }
-            ) {
-                // 进度条：从左往右填充
-                if (!done && p > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(p)
-                            .fillMaxSize()
-                            .background(Brand.copy(alpha = 0.45f))
-                    )
-                }
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        ep.name,
-                        color = if (done || p > 0f) Color.White else TextPrimary,
-                        fontSize = 12.sp,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
-}

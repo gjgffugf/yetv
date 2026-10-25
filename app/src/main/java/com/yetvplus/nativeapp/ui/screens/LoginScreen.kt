@@ -54,6 +54,7 @@ import com.yetvplus.nativeapp.ui.theme.Surface
 import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import com.yetvplus.nativeapp.ui.theme.LocalBrand
 
 /**
  * 登录页（启动门）。
@@ -184,8 +185,8 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
                                     containerColor = Color.Transparent,
                                     focusedTextColor = TextPrimary,
                                     unfocusedTextColor = TextPrimary,
-                                    cursorColor = Brand,
-                                    focusedBorderColor = Brand,
+                                    cursorColor = LocalBrand.current,
+                                    focusedBorderColor = LocalBrand.current,
                                     unfocusedBorderColor = Color.White.copy(alpha = 0.12f)
                                 )
                             )
@@ -201,7 +202,7 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
                                     checked = rememberPwd,
                                     onCheckedChange = { rememberPwd = it },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = Brand,
+                                        checkedColor = LocalBrand.current,
                                         uncheckedColor = TextSecondary
                                     )
                                 )
@@ -240,7 +241,7 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
                                     .fillMaxWidth()
                                     .height(46.dp),
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Brand)
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalBrand.current)
                             ) {
                                 if (busy) {
                                     CircularProgressIndicator(
@@ -255,7 +256,7 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
                             if (prefs.registerEnabled) {
                                 Text(
                                     "没有账号？注册",
-                                    color = Brand,
+                                    color = LocalBrand.current,
                                     fontSize = 13.sp,
                                     modifier = Modifier
                                         .align(Alignment.CenterHorizontally)
@@ -322,8 +323,8 @@ private fun LoginField(
             containerColor = Color.Transparent,
             focusedTextColor = TextPrimary,
             unfocusedTextColor = TextPrimary,
-            cursorColor = Brand,
-            focusedBorderColor = Brand,
+            cursorColor = LocalBrand.current,
+            focusedBorderColor = LocalBrand.current,
             unfocusedBorderColor = Color.White.copy(alpha = 0.12f)
         )
     )
@@ -378,7 +379,7 @@ private fun RegisterCard(
                 },
                 modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Brand)
+                colors = ButtonDefaults.buttonColors(containerColor = LocalBrand.current)
             ) {
                 if (busy) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp))
@@ -389,7 +390,7 @@ private fun RegisterCard(
 
             Text(
                 "返回登录",
-                color = Brand,
+                color = LocalBrand.current,
                 fontSize = 13.sp,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)

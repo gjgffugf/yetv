@@ -64,6 +64,9 @@ import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import com.yetvplus.nativeapp.ui.theme.YETVTheme
 import kotlinx.coroutines.delay
+import com.yetvplus.nativeapp.ui.theme.LocalBrand
+import androidx.compose.foundation.layout.Spacer
+import com.yetvplus.nativeapp.ui.screens.EpisodeSection
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
@@ -78,6 +81,7 @@ class PlayerActivity : ComponentActivity() {
         val index = intent.getIntExtra("index", 0)
         val title = intent.getStringExtra("title") ?: ""
         val videoKey = intent.getStringExtra("videoKey") ?: ""
+        val poster = intent.getStringExtra("poster") ?: ""
 
         val app = application as YETVApp
         if (app.prefs.keepScreenOn) {
@@ -91,13 +95,16 @@ class PlayerActivity : ComponentActivity() {
         }
 
         setContent {
-            YETVTheme {
+            val saved = app.prefs.themeColor
+            val brand = if (saved == 0) Brand else Color(saved)
+            YETVTheme(brandColor = brand) {
                 PlayerScreen(
                     app = app,
                     urls = urls,
                     names = names,
                     startIndex = index,
                     title = title,
+                    poster = poster,
                     videoKey = videoKey,
                     onClose = { finish() },
                     onExternal = { url -> openExternal(url) }
@@ -127,6 +134,7 @@ private fun PlayerScreen(
     names: List<String>,
     startIndex: Int,
     title: String,
+    poster: String,
     videoKey: String,
     onClose: () -> Unit,
     onExternal: (String) -> Unit
@@ -168,6 +176,7 @@ private fun PlayerScreen(
             val pos = player.currentPosition.coerceIn(0, dur)
             prefs.setProgress(videoKey, index, pos.toFloat() / dur.toFloat())
             prefs.lastEpisode = index
+            prefs.putWatchRecord(videoKey, title, poster, index)
         }
     }
 
@@ -380,16 +389,16 @@ private fun PlayerScreen(
                     }
                 }
 
-                // 集数列表（带观看状态着色）
+                // 集数列表（分段 + 正序/倒序 + 观看状态着色）
                 if (urls.size > 1) {
-                    Text(
-                        "选集", color = TextPrimary, fontSize = 15.sp,
-                        modifier = Modifier.padding(start = 14.dp, top = 18.dp, bottom = 8.dp)
-                    )
-                    EpisodePicker(
-                        count = urls.size,
-                        names = names,
-                        current = index,
+                    Spacer(modifier = Modifier.height(16.dp))
+                    EpisodeSection(
+                        episodes = urls.mapIndexed { i, _ ->
+                            com.yetvplus.nativeapp.data.Episode(
+                                names.getOrNull(i) ?: "第${i + 1}集",
+                                urls[i]
+                            )
+                        },
                         finished = { i -> prefs.isFinished(videoKey, i) },
                         progress = { i -> prefs.getProgress(videoKey, i) },
                         onPick = { index = it }
@@ -458,64 +467,5 @@ private fun PlayerButton(
             color = if (enabled) TextPrimary else TextSecondary,
             fontSize = 13.sp
         )
-    }
-}
-
-@Composable
-private fun EpisodePicker(
-    count: Int,
-    names: List<String>,
-    current: Int,
-    finished: (Int) -> Boolean,
-    progress: (Int) -> Float,
-    onPick: (Int) -> Unit
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(4),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp)
-            .height(((count / 4 + 1) * 46).coerceAtMost(400).dp),
-        contentPadding = PaddingValues(0.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(count = count) { i ->
-            val done = finished(i)
-            val p = if (done) 1f else progress(i).coerceIn(0f, 1f)
-            val isCurrent = i == current
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        when {
-                            isCurrent -> Brand
-                            done -> Brand.copy(alpha = 0.75f)
-                            else -> SurfaceLight
-                        }
-                    )
-                    .clickable { onPick(i) }
-            ) {
-                if (!done && !isCurrent && p > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(p)
-                            .fillMaxSize()
-                            .background(Brand.copy(alpha = 0.45f))
-                    )
-                }
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        names.getOrNull(i) ?: "第${i + 1}集",
-                        color = if (isCurrent || done || p > 0f) Color.White else TextPrimary,
-                        fontSize = 12.sp,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
     }
 }

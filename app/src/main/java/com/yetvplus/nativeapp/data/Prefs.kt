@@ -115,6 +115,117 @@ class Prefs(context: Context) {
         e.remove("last_episode").apply()
     }
 
+    // ---------- 观看记录（列表，供「我的」页展示）----------
+
+    /** 记录一部片：标题、海报、看到第几集、时间戳。同一部片覆盖更新。 */
+    fun putWatchRecord(videoKey: String, title: String, poster: String, episode: Int) {
+        val map = LinkedHashMap<String, String>()
+        map["t"] = title
+        map["p"] = poster
+        map["e"] = episode.toString()
+        map["ts"] = System.currentTimeMillis().toString()
+        sp.edit().putString("wr_$videoKey", GSON.toJson(map)).apply()
+    }
+
+    /** 按最近观看排序 */
+    fun watchRecords(): List<WatchRecord> {
+        val out = ArrayList<WatchRecord>()
+        for ((k, v) in sp.all) {
+            if (!k.startsWith("wr_")) continue
+            if (v !is String) continue
+            val m = runCatching {
+                GSON.fromJson(v, com.google.gson.reflect.TypeToken.getParameterized(
+                    Map::class.java, String::class.java, String::class.java).type) as Map<String, String>
+            }.getOrNull() ?: continue
+            out.add(
+                WatchRecord(
+                    key = k.removePrefix("wr_"),
+                    title = m["t"] ?: "",
+                    poster = m["p"] ?: "",
+                    episode = m["e"]?.toIntOrNull() ?: 0,
+                    ts = m["ts"]?.toLongOrNull() ?: 0L
+                )
+            )
+        }
+        return out.sortedByDescending { it.ts }
+    }
+
+    fun removeWatchRecord(videoKey: String) {
+        sp.edit().remove("wr_$videoKey").apply()
+    }
+
+    fun clearWatchRecords() {
+        val e = sp.edit()
+        sp.all.keys.filter { it.startsWith("wr_") }.forEach { e.remove(it) }
+        e.apply()
+    }
+
+    // ---------- 搜索历史 ----------
+
+    var searchHistory: List<String>
+        get() {
+            val raw = sp.getString("search_history", "") ?: ""
+            if (raw.isEmpty()) return emptyList()
+            return raw.split("\u0001").filter { it.isNotBlank() }
+        }
+        set(value) = sp.edit().putString(
+            "search_history",
+            value.take(20).joinToString("\u0001")
+        ).apply()
+
+    fun addSearchHistory(q: String) {
+        val t = q.trim()
+        if (t.isEmpty()) return
+        val list = searchHistory.toMutableList()
+        list.remove(t)
+        list.add(0, t)
+        searchHistory = list
+    }
+
+    fun removeSearchHistory(q: String) {
+        searchHistory = searchHistory.filter { it != q }
+    }
+
+    fun clearSearchHistory() {
+        sp.edit().remove("search_history").apply()
+    }
+
+    // ---------- 个性化 ----------
+
+    /** 主题色 ARGB；0 表示用默认 Brand */
+    var themeColor: Int
+        get() = sp.getInt("theme_color", 0)
+        set(value) = sp.edit().putInt("theme_color", value).apply()
+
+    // ---------- 首页缓存（24 小时）----------
+
+    companion object {
+        const val CACHE_MS = 24 * 60 * 60 * 1000L
+        private val GSON = com.google.gson.Gson()
+    }
+
+    private fun cacheKey(k: String) = "cache_$k"
+
+    /** 24 小时内返回缓存，过期返回 null */
+    fun getCache(k: String): String? {
+        val ts = sp.getLong("${cacheKey(k)}_ts", 0L)
+        if (System.currentTimeMillis() - ts > CACHE_MS) return null
+        return sp.getString(cacheKey(k), null)
+    }
+
+    fun putCache(k: String, json: String) {
+        sp.edit()
+            .putString(cacheKey(k), json)
+            .putLong("${cacheKey(k)}_ts", System.currentTimeMillis())
+            .apply()
+    }
+
+    fun clearCache() {
+        val e = sp.edit()
+        sp.all.keys.filter { it.startsWith("cache_") }.forEach { e.remove(it) }
+        e.apply()
+    }
+
     fun isLoggedIn(): Boolean = cookie.isNotEmpty()
 
     fun logout() {

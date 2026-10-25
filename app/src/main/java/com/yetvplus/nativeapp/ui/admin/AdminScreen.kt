@@ -44,6 +44,7 @@ import com.yetvplus.nativeapp.ui.theme.Surface
 import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import com.yetvplus.nativeapp.ui.theme.LocalBrand
 
 private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级")
 
@@ -436,8 +437,8 @@ private fun SwitchRow2(text: String, checked: Boolean, onChange: (Boolean) -> Un
             checked = checked,
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Brand,
-                checkedTrackColor = Brand.copy(alpha = 0.5f)
+                checkedThumbColor = LocalBrand.current,
+                checkedTrackColor = LocalBrand.current.copy(alpha = 0.5f)
             )
         )
     }

@@ -12,9 +12,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +41,17 @@ import com.yetvplus.nativeapp.ui.theme.Bg
 import com.yetvplus.nativeapp.ui.theme.Brand
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import com.yetvplus.nativeapp.ui.theme.YETVTheme
+import com.yetvplus.nativeapp.ui.theme.LocalBrand
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 
 object Route {
     const val LOGIN = "login"
@@ -64,7 +72,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            YETVTheme { AppRoot() }
+            val saved = app.prefs.themeColor
+            val brand = if (saved == 0) Brand else Color(saved)
+            YETVTheme(brandColor = brand) { AppRoot() }
         }
     }
 }
@@ -102,30 +112,13 @@ private fun AppRoot() {
                 bottomBar = {
                     val show = tabs.any { it.route == currentRoute }
                     if (show) {
-                        NavigationBar(containerColor = Color.Transparent) {
-                            tabs.forEach { t ->
-                                val selected = currentRoute == t.route
-                                NavigationBarItem(
-                                    selected = selected,
-                                    onClick = {
-                                        navController.navigate(t.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                    icon = { Icon(t.icon, contentDescription = t.label) },
-                                    label = { Text(t.label, fontSize = 11.sp) },
-                                    colors = NavigationBarItemDefaults.colors(
-                                        selectedIconColor = Brand,
-                                        selectedTextColor = Brand,
-                                        indicatorColor = Color.White.copy(alpha = 0.10f),
-                                        unselectedIconColor = TextSecondary,
-                                        unselectedTextColor = TextSecondary
-                                    )
-                                )
+                        GlassDock(tabs = tabs, currentRoute = currentRoute) { route ->
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
                         }
                     }
@@ -133,6 +126,10 @@ private fun AppRoot() {
             ) { padding ->
                 NavHost(
                     navController = navController,
+                    enterTransition = { fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 10 } },
+                    exitTransition = { fadeOut(tween(180)) },
+                    popEnterTransition = { fadeIn(tween(220)) },
+                    popExitTransition = { fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { it / 10 } },
                     // 未登录直接进登录页：站点的 middleware 会挡掉所有 /api/*
                     startDestination = if (app.prefs.isLoggedIn()) Route.HOME else Route.LOGIN,
                     modifier = Modifier
@@ -164,6 +161,17 @@ private fun AppRoot() {
                         MineScreen(
                             app,
                             onSettings = { navController.navigate(Route.SETTINGS) },
+                            onOpenRecord = { r ->
+                                // key 形如 "source+id"，拆出来走详情接口现取分集
+                                val parts = r.key.split("+", limit = 2)
+                                NavArgs.video = VideoItem(
+                                    source = parts.getOrNull(0) ?: "",
+                                    id = parts.getOrNull(1) ?: "",
+                                    title = r.title,
+                                    poster = r.poster
+                                )
+                                navController.navigate(Route.DETAIL)
+                            },
                             onLogout = {
                                 navController.navigate(Route.LOGIN) {
                                     popUpTo(Route.HOME) { inclusive = true }
@@ -177,6 +185,87 @@ private fun AppRoot() {
                     composable(Route.SETTINGS) {
                         SettingsScreen(app) { navController.popBackStack() }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 底部液态玻璃 Dock 栏。
+ * 半透明渐变 + 细高光描边 + 悬浮阴影，选中项用主色胶囊高亮并带缩放动画。
+ */
+@Composable
+private fun GlassDock(
+    tabs: List<TabDef>,
+    currentRoute: String?,
+    onSelect: (String) -> Unit
+) {
+    val brand = LocalBrand.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .shadow(18.dp, RoundedCornerShape(30.dp))
+                .clip(RoundedCornerShape(30.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.16f),
+                            Color.White.copy(alpha = 0.05f)
+                        )
+                    )
+                )
+                .border(
+                    1.dp,
+                    Color.White.copy(alpha = 0.18f),
+                    RoundedCornerShape(30.dp)
+                )
+                .padding(horizontal = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEach { t ->
+                val selected = currentRoute == t.route
+                val size by animateDpAsState(
+                    targetValue = if (selected) 26.dp else 22.dp,
+                    label = "dockIcon"
+                )
+                val tint by animateColorAsState(
+                    targetValue = if (selected) brand else TextSecondary,
+                    label = "dockTint"
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(22.dp))
+                        .then(
+                            if (selected) {
+                                Modifier.background(brand.copy(alpha = 0.16f))
+                            } else Modifier
+                        )
+                        .clickable { onSelect(t.route) }
+                        .padding(vertical = 7.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        t.icon,
+                        contentDescription = t.label,
+                        tint = tint,
+                        modifier = Modifier.size(size)
+                    )
+                    Text(
+                        t.label,
+                        color = tint,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                 }
             }
         }

@@ -7,8 +7,11 @@ android {
     namespace = "com.yetvplus.nativeapp"
     compileSdk = 34
 
+    // 内置签名库：app/yetvplus.jks（有效期 100 年，走外部环境变量时才覆盖）
     val customStoreFile = project.findProperty("MTV_STORE_FILE") as String?
+    val defaultStore = file("yetvplus.jks")
     val useCustomSigning = !customStoreFile.isNullOrBlank()
+    val useBuiltInSigning = defaultStore.exists()
 
     defaultConfig {
         applicationId = "com.yetvplus.nativeapp"
@@ -25,6 +28,11 @@ android {
                 storePassword = (project.findProperty("MTV_STORE_PASSWORD") as String?) ?: ""
                 keyAlias = (project.findProperty("MTV_KEY_ALIAS") as String?) ?: ""
                 keyPassword = (project.findProperty("MTV_KEY_PASSWORD") as String?) ?: ""
+            } else if (useBuiltInSigning) {
+                storeFile = defaultStore
+                storePassword = "yetvplus"
+                keyAlias = "yetvplus"
+                keyPassword = "2287681747yetvplus"
             }
         }
     }
@@ -36,7 +44,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = if (useCustomSigning) {
+            signingConfig = if (useCustomSigning || useBuiltInSigning) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")

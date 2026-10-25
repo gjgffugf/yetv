@@ -491,3 +491,12 @@ data class DanmakuComment(
     /** 0 滚动 / 1 顶部 / 2 底部 */
     val mode: Int = 0
 )
+
+/** 「我的」页的本地观看记录条目 */
+data class WatchRecord(
+    val key: String = "",
+    val title: String = "",
+    val poster: String = "",
+    val episode: Int = 0,
+    val ts: Long = 0L
+)

@@ -1,5 +1,7 @@
 package com.yetvplus.nativeapp.data
 
+import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -8,7 +10,7 @@ import kotlinx.coroutines.withContext
  * 业务仓库：所有网络请求必须切到 IO 线程。
  * 接口路径集中在此，抓包校准时主要看这里 + Models.Mapping。
  */
-class Repo(private val api: ApiClient) {
+class Repo(private val api: ApiClient, private val prefs: Prefs) {
 
     // ---------- 内容 ----------
 
@@ -28,17 +30,28 @@ class Repo(private val api: ApiClient) {
      */
     suspend fun douban(type: String, tag: String, pageSize: Int = 24, start: Int = 0): List<DoubanItem> =
         withContext(Dispatchers.IO) {
-            Mapping.parseDouban(
-                api.get(
-                    "/api/douban",
-                    mapOf(
-                        "type" to type,
-                        "tag" to tag,
-                        "pageSize" to pageSize.toString(),
-                        "pageStart" to start.toString()
-                    )
+            val key = "douban:$type:$tag:$pageSize:$start"
+            // 24 小时缓存：Cloudflare 部署经常超时，缓存能显著减少等待
+            prefs.getCache(key)?.let { cached ->
+                val el = runCatching {
+                    Gson().fromJson(cached, JsonElement::class.java)
+                }.getOrNull()
+                if (el != null) {
+                    val list = Mapping.parseDouban(el)
+                    if (list.isNotEmpty()) return@withContext list
+                }
+            }
+            val el = api.get(
+                "/api/douban",
+                mapOf(
+                    "type" to type,
+                    "tag" to tag,
+                    "pageSize" to pageSize.toString(),
+                    "pageStart" to start.toString()
                 )
             )
+            if (el != null) runCatching { prefs.putCache(key, el.toString()) }
+            Mapping.parseDouban(el)
         }
 
     /** 豆瓣推荐（你的站点目前 500，保留但不作为首页数据源） */

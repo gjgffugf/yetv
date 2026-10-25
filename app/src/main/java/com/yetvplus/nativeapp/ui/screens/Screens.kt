@@ -60,6 +60,22 @@ import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import com.yetvplus.nativeapp.ui.theme.LocalBrand
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.layout.Spacer
+import com.yetvplus.nativeapp.ui.UiState
+import androidx.compose.foundation.layout.width
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import com.yetvplus.nativeapp.data.WatchRecord
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import com.yetvplus.nativeapp.ui.theme.THEME_PRESETS
 
 // ---------------- 首页 ----------------
 
@@ -78,13 +94,14 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
     val items = remember { mutableStateListOf<DoubanItem>() }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
+    var retry by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     val tags = if (mediaType == 0) MOVIE_TAGS else TV_TAGS
     val type = if (mediaType == 0) "movie" else "tv"
     val tag = tags.getOrNull(tagIndex) ?: "热门"
 
-    LaunchedEffect(mediaType, tagIndex) {
+    LaunchedEffect(mediaType, tagIndex, retry) {
         loading = true
         error = ""
         items.clear()
@@ -100,7 +117,12 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
                 }
             }
         } else {
-            error = "加载失败：${res.exceptionOrNull()?.message ?: "未知错误"}"
+            val m = res.exceptionOrNull()?.message ?: "未知错误"
+            error = if (m.contains("timeout", true)) {
+                "加载超时，可点下方按钮重试"
+            } else {
+                "加载失败：$m"
+            }
         }
     }
 
@@ -117,7 +139,20 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
 
         when {
             loading -> LoadingBox()
-            error.isNotEmpty() -> EmptyBox(error)
+            error.isNotEmpty() -> Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(error, color = Color(0xFFFFC46B), fontSize = 13.sp,
+                    textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = { retry++ },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = LocalBrand.current)
+                ) { Text("重试") }
+            }
             else -> DoubanGrid(items) { d ->
                 scope.launch {
                     val list = runCatching { app.repo.search(d.title) }.getOrNull() ?: emptyList()
@@ -135,16 +170,33 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
 
 @Composable
 fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
-    var keyword by remember { mutableStateOf("") }
-    var submitted by remember { mutableStateOf("") }
-    val results = remember { mutableStateListOf<VideoItem>() }
+    val prefs = app.prefs
+    // 关键词与结果放在进程级单例里，详情页返回后不丢
+    var keyword by remember { mutableStateOf(UiState.keyword) }
+    var submitted by remember { mutableStateOf(UiState.submitted) }
+    val results = remember { mutableStateListOf<VideoItem>().apply { addAll(UiState.results) } }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var attempt by remember { mutableIntStateOf(0) }
+    var history by remember { mutableStateOf(prefs.searchHistory) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(submitted) {
+    fun run(q: String) {
+        val t = q.trim()
+        if (t.isEmpty()) return
+        keyword = t
+        UiState.keyword = t
+        prefs.addSearchHistory(t)
+        history = prefs.searchHistory
+        submitted = t
+        UiState.submitted = t
+        UiState.searched = true
+    }
+
+    LaunchedEffect(submitted, attempt) {
         if (submitted.isBlank()) {
             results.clear()
+            UiState.results = emptyList()
             return@LaunchedEffect
         }
         loading = true
@@ -153,16 +205,24 @@ fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
         val res = runCatching { app.repo.search(submitted) }
         loading = false
         if (res.isSuccess) {
-            results.addAll(res.getOrElse { emptyList() })
+            val list = res.getOrElse { emptyList() }
+            results.addAll(list)
+            UiState.results = list
             if (results.isEmpty()) {
                 error = if (app.api.lastUnauthorized) {
-                    "站点要求登录（401），请到「我的」登录后再搜索"
+                    "站点要求登录（401），请登录后重试"
                 } else {
                     "没有找到结果"
                 }
             }
         } else {
-            error = "搜索失败：${res.exceptionOrNull()?.message ?: "未知错误"}"
+            // 超时 / 网络失败：给一个「重试」按钮，Cloudflare 偶发超时很常见
+            val msg = res.exceptionOrNull()?.message ?: "未知错误"
+            error = if (msg.contains("timeout", true)) {
+                "请求超时，可点下方按钮重试"
+            } else {
+                "搜索失败：$msg"
+            }
         }
     }
 
@@ -175,28 +235,79 @@ fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
         ) {
             OutlinedTextField(
                 value = keyword,
-                onValueChange = { keyword = it },
+                onValueChange = { keyword = it; UiState.keyword = it },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 placeholder = { Text("搜索影片、剧集…", color = TextSecondary, fontSize = 14.sp) },
                 shape = RoundedCornerShape(12.dp),
+                // 键盘回车直接搜索
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { run(keyword) }),
                 colors = TextFieldDefaults.outlinedTextFieldColors(
                     containerColor = Surface,
                     focusedTextColor = TextPrimary,
                     unfocusedTextColor = TextPrimary,
-                    cursorColor = Brand,
-                    focusedBorderColor = Brand,
+                    cursorColor = LocalBrand.current,
+                    focusedBorderColor = LocalBrand.current,
                     unfocusedBorderColor = Color.Transparent
                 )
             )
-            IconButton(onClick = { submitted = keyword.trim() }) {
-                Icon(Icons.Default.Search, contentDescription = "搜索", tint = Brand)
+            IconButton(onClick = { run(keyword) }) {
+                Icon(Icons.Default.Search, contentDescription = "搜索", tint = LocalBrand.current)
+            }
+        }
+
+        // 搜索历史
+        if (history.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("搜索历史", color = TextSecondary, fontSize = 12.sp,
+                    modifier = Modifier.weight(1f))
+                Text("清空", color = LocalBrand.current, fontSize = 12.sp,
+                    modifier = Modifier.clickable {
+                        prefs.clearSearchHistory()
+                        history = emptyList()
+                    })
+            }
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(history) { h ->
+                    Box(
+                        modifier = Modifier
+                            .background(SurfaceLight, RoundedCornerShape(14.dp))
+                            .clickable { run(h) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text(h, color = TextPrimary, fontSize = 12.sp, maxLines = 1)
+                    }
+                }
             }
         }
 
         when {
             loading -> LoadingBox("搜索中…")
-            error.isNotEmpty() -> EmptyBox(error)
+            error.isNotEmpty() -> Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(error, color = Color(0xFFFFC46B), fontSize = 13.sp,
+                    textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = { attempt++ },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = LocalBrand.current)
+                ) { Text("重试") }
+            }
             submitted.isBlank() -> EmptyBox("输入关键词开始搜索")
             else -> VideoGrid(results) { onOpen(it) }
         }
@@ -206,11 +317,20 @@ fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
 // ---------------- 我的 ----------------
 
 @Composable
-fun MineScreen(app: YETVApp, onSettings: () -> Unit, onLogout: () -> Unit) {
+fun MineScreen(
+    app: YETVApp,
+    onSettings: () -> Unit,
+    onLogout: () -> Unit,
+    onOpenRecord: (WatchRecord) -> Unit = {}
+) {
     val prefs = app.prefs
     var msg by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    // 每次进入重新读，从播放页返回后能立刻看到新记录
+    var records by remember { mutableStateOf(prefs.watchRecords()) }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) { records = prefs.watchRecords() }
 
     Column(
         modifier = Modifier
@@ -255,17 +375,91 @@ fun MineScreen(app: YETVApp, onSettings: () -> Unit, onLogout: () -> Unit) {
             Text(msg, color = Color(0xFFFFC46B), fontSize = 13.sp)
         }
 
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Surface),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth()
+        // ---- 本地观看记录 ----
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text("收藏与历史", color = TextPrimary, fontSize = 15.sp)
-                Text(
-                    "收藏与播放记录与网页端同步，数据存在你的站点上。",
-                    color = TextSecondary, fontSize = 12.sp
-                )
+            Text("观看记录（${records.size}）", color = TextPrimary, fontSize = 16.sp,
+                modifier = Modifier.weight(1f))
+            if (records.isNotEmpty()) {
+                Text("清空", color = LocalBrand.current, fontSize = 12.sp,
+                    modifier = Modifier.clickable {
+                        prefs.clearWatchRecords()
+                        records = emptyList()
+                    })
+            }
+        }
+
+        if (records.isEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Surface),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text("还没有观看记录", color = TextPrimary, fontSize = 14.sp)
+                    Text(
+                        "播放任意一集后会自动记录进度，数据只存在本机。",
+                        color = TextSecondary, fontSize = 12.sp
+                    )
+                }
+            }
+        } else {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Surface),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                    records.forEach { r ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenRecord(r) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(46.dp)
+                                    .height(64.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(SurfaceLight)
+                            ) {
+                                if (r.poster.isNotEmpty()) {
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(r.poster)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 12.dp)
+                            ) {
+                                Text(r.title.ifEmpty { "未命名" }, color = TextPrimary,
+                                    fontSize = 14.sp, maxLines = 2)
+                                Text(
+                                    "看到第 ${r.episode + 1} 集",
+                                    color = TextSecondary, fontSize = 12.sp,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                            Text("删除", color = TextSecondary, fontSize = 11.sp,
+                                modifier = Modifier.clickable {
+                                    prefs.removeWatchRecord(r.key)
+                                    records = prefs.watchRecords()
+                                })
+                        }
+                    }
+                }
             }
         }
 
@@ -284,9 +478,8 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
     var dim by remember { mutableFloatStateOf(prefs.bgDim) }
     var keepOn by remember { mutableStateOf(prefs.keepScreenOn) }
     var land by remember { mutableStateOf(prefs.autoLandscape) }
-    var ssl by remember { mutableStateOf(prefs.ignoreSsl) }
-    var apiPrefix by remember { mutableStateOf(prefs.apiPrefix) }
     var tip by remember { mutableStateOf("") }
+    var themeArgb by remember { mutableIntStateOf(prefs.themeColor) }
 
     val pickBg = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -295,7 +488,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
             prefs.bgPath = file.absolutePath
             prefs.bgEnabled = true
             bgOn = true
-            tip = "背景图已设置"
+            tip = "背景图已选择，记得点「保存背景设置」"
         } else {
             tip = "读取图片失败"
         }
@@ -317,6 +510,53 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
             Text("应用设置", color = TextPrimary, fontSize = 20.sp)
         }
 
+        // ---- 个性化 ----
+        SettingsCard("个性化") {
+            Text("软件默认色", color = TextPrimary, fontSize = 14.sp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                THEME_PRESETS.forEach { (name, argb) ->
+                    val selected = themeArgb == argb
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(19.dp))
+                            .background(Color(argb))
+                            .then(
+                                if (selected) {
+                                    Modifier.background(Color.Transparent)
+                                } else Modifier
+                            )
+                            .clickable {
+                                themeArgb = argb
+                                prefs.themeColor = argb
+                                tip = "已切换为$name"
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (selected) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White)
+                            )
+                        }
+                    }
+                }
+            }
+            ActionRow("恢复默认色") {
+                themeArgb = 0
+                prefs.themeColor = 0
+                tip = "已恢复默认色"
+            }
+        }
+
+        // ---- 背景图 ----
         SettingsCard("背景图") {
             SwitchRow("启用自定义背景图", bgOn) {
                 bgOn = it
@@ -337,57 +577,38 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                 value = dim,
                 range = 0f..0.85f,
                 onValue = { dim = it },
-                onDone = { prefs.bgDim = dim }
+                onDone = { }
             )
+            // 明确点保存才写入
+            ActionRow("保存背景设置") {
+                prefs.bgEnabled = bgOn
+                prefs.bgDim = dim
+                tip = "背景设置已保存"
+            }
         }
 
+        // ---- 播放 ----
         SettingsCard("播放") {
             SwitchRow("播放时保持屏幕常亮", keepOn) { keepOn = it; prefs.keepScreenOn = it }
             SwitchRow("进入播放自动横屏", land) { land = it; prefs.autoLandscape = it }
             HintText("默认进入是小窗播放，横屏请点播放器右下角的全屏按钮。")
         }
 
-        SettingsCard("观看记录") {
+        // ---- 缓存与记录 ----
+        SettingsCard("缓存与记录") {
             Text(
-                "集数观看进度保存在本机，不上传。",
+                "首页榜单本地缓存 24 小时，观看进度与记录仅存本机。",
                 color = TextSecondary, fontSize = 12.sp
             )
+            ActionRow("清除首页缓存") {
+                prefs.clearCache()
+                tip = "首页缓存已清除"
+            }
             ActionRow("清除全部观看记录") {
-                clearAllProgress(prefs)
+                prefs.clearProgress()
+                prefs.clearWatchRecords()
                 tip = "观看记录已清除"
             }
-        }
-
-        SettingsCard("高级") {
-            Text(
-                "接口路径前缀（一般留空）",
-                color = TextPrimary, fontSize = 14.sp
-            )
-            OutlinedTextField(
-                value = apiPrefix,
-                onValueChange = { apiPrefix = it },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .heightIn(min = 52.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = TextFieldDefaults.outlinedTextFieldColors(
-                    containerColor = SurfaceLight,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    cursorColor = Brand,
-                    focusedBorderColor = Brand,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.12f)
-                )
-            )
-            ActionRow("保存前缀") {
-                prefs.apiPrefix = apiPrefix
-                tip = if (prefs.apiPrefix.isEmpty()) "已恢复默认路径" else "已保存前缀设置"
-            }
-            HintText("若站点把接口挂在子路径下才需要填，例如填 /dl。")
-            SwitchRow("忽略 SSL 证书错误", ssl) { ssl = it; prefs.ignoreSsl = it }
-            HintText("仅自建证书场景开启，存在安全风险。")
         }
 
         if (tip.isNotEmpty()) {
@@ -437,8 +658,8 @@ private fun SwitchRow(text: String, checked: Boolean, onChange: (Boolean) -> Uni
             checked = checked,
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Brand,
-                checkedTrackColor = Brand.copy(alpha = 0.5f)
+                checkedThumbColor = LocalBrand.current,
+                checkedTrackColor = LocalBrand.current.copy(alpha = 0.5f)
             )
         )
     }
@@ -450,7 +671,7 @@ private fun ActionRow(text: String, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
         shape = RoundedCornerShape(10.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Brand)
+        colors = ButtonDefaults.buttonColors(containerColor = LocalBrand.current)
     ) {
         Text(text, fontSize = 14.sp)
     }
@@ -472,7 +693,7 @@ private fun SliderRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(label, color = TextPrimary, fontSize = 14.sp)
-            Text(valueText, color = Brand, fontSize = 13.sp)
+            Text(valueText, color = LocalBrand.current, fontSize = 13.sp)
         }
         Slider(
             value = value,

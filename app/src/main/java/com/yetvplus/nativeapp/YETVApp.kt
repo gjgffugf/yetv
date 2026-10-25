@@ -10,6 +10,10 @@ import com.yetvplus.nativeapp.data.ApiClient
 import com.yetvplus.nativeapp.data.Prefs
 import com.yetvplus.nativeapp.data.Repo
 
+private const val IMG_UA =
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+private const val IMG_REFERER = "https://movie.douban.com/"
+
 class YETVApp : Application(), ImageLoaderFactory {
 
     lateinit var prefs: Prefs
@@ -23,14 +27,26 @@ class YETVApp : Application(), ImageLoaderFactory {
         super.onCreate()
         prefs = Prefs(this)
         api = ApiClient(this)
-        repo = Repo(api)
+        repo = Repo(api, prefs)
     }
 
-    /** 图片加载：放宽 SSL 选项，避免自建证书站点图片加载失败 */
+    /**
+     * 图片加载。
+     * 关键：豆瓣（doubanio.com）等图床有防盗链，不带 UA/Referer 会返回 403，
+     * 表现就是「首页海报一片空白」。这里统一补上请求头。
+     */
     override fun newImageLoader(): ImageLoader {
         val builder = OkHttpClient.Builder()
         if (prefs.ignoreSsl) {
             builder.hostnameVerifier { _, _ -> true }
+        }
+        builder.addInterceptor { chain ->
+            val req = chain.request().newBuilder()
+                .header("User-Agent", IMG_UA)
+                .header("Referer", IMG_REFERER)
+                .header("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+                .build()
+            chain.proceed(req)
         }
         return ImageLoader.Builder(this)
             .okHttpClient(builder.build())
