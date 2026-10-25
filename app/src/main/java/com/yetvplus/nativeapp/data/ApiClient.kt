@@ -11,7 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.toHttpUrl
+import java.net.URLEncoder
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -107,13 +107,23 @@ class ApiClient(private val context: Context) {
     // ---------------- GET ----------------
 
     fun get(path: String, params: Map<String, String> = emptyMap()): JsonElement? {
-        // OkHttp 4 用扩展函数 toHttpUrl()，HttpUrl.parse() 已废弃为 error
-        val httpUrl = runCatching { url(path).toHttpUrl() }.getOrNull() ?: return null
-        val builder = httpUrl.newBuilder()
-        for ((k, v) in params) builder.addQueryParameter(k, v)
+        // 用 JDK 的 URLEncoder 拼 URL，再交给 Request.Builder.url(String)。
+        // 不用 HttpUrl.parse（4.x 已废弃为 error），也不用 toHttpUrl 扩展（解析差异会报 unresolved）
+        val base = url(path)
+        val full = if (params.isEmpty()) {
+            base
+        } else {
+            buildString {
+                append(base)
+                append(if (base.contains("?")) "&" else "?")
+                params.entries.joinTo(this, "&") { (k, v) ->
+                    "${URLEncoder.encode(k, "UTF-8")}=${URLEncoder.encode(v, "UTF-8")}"
+                }
+            }
+        }
 
         val req = Request.Builder()
-            .url(builder.build())
+            .url(full)
             .header("User-Agent", UA)
             .header("Accept", "application/json, text/plain, */*")
             .header("Accept-Language", "zh-CN,zh;q=0.9")
