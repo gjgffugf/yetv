@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YETV Plus App 界面预览</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0b0b12;
+    color: #efeff7;
+    font-family: "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", system-ui, sans-serif;
+    padding: 32px 20px 56px;
+  }
+  h1 { font-size: 22px; text-align: center; letter-spacing: .5px; }
+  .sub { text-align: center; color: #a9a9be; font-size: 13px; margin-top: 8px; line-height: 1.8; }
+  .wrap { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; margin-top: 36px; }
+  .col { text-align: center; }
+  .col h3 { font-size: 14px; color: #8f7bff; margin-bottom: 12px; font-weight: 600; }
+  .col p { font-size: 12px; color: #7a7a90; margin-top: 10px; }
+
+  .phone {
+    width: 300px; height: 620px;
+    border-radius: 34px;
+    background: #101018;
+    border: 2px solid #2a2a3a;
+    box-shadow: 0 18px 50px rgba(0,0,0,.55);
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .bar {
+    height: 26px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px; font-size: 10px; color: #cfcfe4; background: rgba(0,0,0,.35); flex: none;
+  }
+  .screen { flex: 1; position: relative; overflow: hidden; }
+
+  /* 自定义背景图（模拟） */
+  .bgpic {
+    position: absolute; inset: -20px; z-index: 0;
+    background:
+      radial-gradient(circle at 22% 18%, rgba(140,110,255,.85), transparent 45%),
+      radial-gradient(circle at 78% 32%, rgba(255,110,180,.55), transparent 42%),
+      radial-gradient(circle at 45% 88%, rgba(60,190,255,.5), transparent 48%),
+      linear-gradient(160deg, #2b1a5e 0%, #120c2c 55%, #05050c 100%);
+    filter: blur(0px) brightness(.62);
+  }
+  .content { position: relative; z-index: 1; height: 100%; overflow: hidden; }
+
+  /* 首页 */
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
+  .brand { font-size: 15px; font-weight: 700; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg,#7c6bff,#ff7cc6); }
+  .search {
+    margin: 4px 14px 10px; padding: 7px 12px; border-radius: 10px;
+    background: rgba(255,255,255,.10); font-size: 11px; color: #b9b9d0;
+  }
+  .tabs { display: flex; gap: 14px; padding: 0 14px 10px; font-size: 11.5px; color: #a9a9be; overflow: hidden; }
+  .tabs span.active { color: #fff; font-weight: 700; border-bottom: 2px solid #7c6bff; padding-bottom: 3px; }
+  .grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 9px; padding: 0 12px; }
+  .card .poster { height: 84px; border-radius: 8px; }
+  .card .t { font-size: 10px; margin-top: 5px; color: #dcdcec; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .s { font-size: 9px; color: #8f8fa8; }
+  .p1 { background: linear-gradient(135deg,#6d5bff,#3d2f8f); }
+  .p2 { background: linear-gradient(135deg,#ff7cc6,#8a3d7a); }
+  .p3 { background: linear-gradient(135deg,#3ec8ff,#2b5f9e); }
+  .p4 { background: linear-gradient(135deg,#ffc46b,#b76b2b); }
+  .p5 { background: linear-gradient(135deg,#5ce6a8,#25806a); }
+  .p6 { background: linear-gradient(135deg,#ff6b6b,#8a2b3d); }
+
+  .nav {
+    flex: none; height: 52px; display: flex; align-items: center; justify-content: space-around;
+    background: rgba(18,18,26,.92); border-top: 1px solid rgba(255,255,255,.06);
+    font-size: 9.5px; color: #8d8da6;
+  }
+  .nav div { text-align: center; }
+  .nav div.on { color: #7c6bff; font-weight: 700; }
+  .nav .ic { font-size: 15px; display: block; margin-bottom: 2px; }
+
+  .fab {
+    position: absolute; right: 12px; top: 34px; width: 34px; height: 34px; border-radius: 50%;
+    background: #5b4be0; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: #fff; box-shadow: 0 6px 16px rgba(91,75,224,.5); z-index: 5;
+  }
+  .menu {
+    position: absolute; right: 10px; top: 74px; width: 128px; z-index: 6;
+    background: #23233a; border: 1px solid rgba(255,255,255,.08); border-radius: 12px;
+    padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.5);
+  }
+  .menu div { padding: 7px 10px; font-size: 11.5px; border-radius: 8px; }
+  .menu div:hover { background: rgba(255,255,255,.07); }
+
+  /* 通用内容（管理面板 / 设置） */
+  .page { padding: 10px 12px 14px; height: 100%; overflow-y: auto; }
+  .page::-webkit-scrollbar { width: 0; }
+  .hd { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+  .hd .back { color: #cfcfe4; }
+  .sec {
+    background: #1c1c28; border-radius: 14px; padding: 10px 12px; margin-bottom: 10px;
+  }
+  .sec h4 { font-size: 12px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-size: 11.5px; color: #dcdcec; }
+  .row small { display: block; color: #7f7f96; font-size: 10px; margin-top: 2px; }
+  .sw { width: 34px; height: 19px; border-radius: 12px; background: #3a3a52; position: relative; flex: none; }
+  .sw.on { background: #7c6bff; }
+  .sw i { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; }
+  .sw.on i { left: 17px; }
+  .input {
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px; padding: 7px 9px; font-size: 11px; color: #cfcfe4; margin-bottom: 8px;
+  }
+  .btn {
+    background: #5b4be0; color: #fff; border-radius: 8px; padding: 7px 10px;
+    font-size: 11px; text-align: center; margin-top: 6px;
+  }
+  .btn.ghost { background: transparent; border: 1px solid #7c6bff; color: #b9a9ff; }
+  .slider { height: 4px; border-radius: 3px; background: #3a3a52; margin: 8px 0 4px; position: relative; }
+  .slider i { position: absolute; left: 45%; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+  .slider.short i { left: 0; }
+  .tag { font-size: 9.5px; color: #8f7bff; border: 1px solid #8f7bff; border-radius: 6px; padding: 2px 6px; }
+  .chip { display: inline-block; background: rgba(124,107,255,.16); color: #b9a9ff; border-radius: 6px; padding: 3px 7px; font-size: 10px; margin-right: 6px; }
+  .label { font-size: 10.5px; color: #a9a9be; margin: 8px 0 2px; }
+  .foot { text-align: center; color: #64647c; font-size: 11.5px; margin-top: 40px; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<h1>YETV Plus · 原生 App 界面预览</h1>
+<p class="sub">Android 原生壳 + WebView 直连 <b>https://mtv.ffurry.cc.cd</b><br>页面由你的站点渲染，布局与手机网页版完全一致，以下为 App 原生能力示意</p>
+
+<div class="wrap">
+
+  <div class="col">
+    <h3>首页 · 自定义背景图生效</h3>
+    <div class="phone">
+      <div class="bar"><span>9:41</span><span>YETV Plus ●●●</span></div>
+      <div class="screen">
+        <div class="bgpic"></div>
+        <div class="content">
+          <div class="top">
+            <div class="brand">YETVPLUS</div>
+            <div class="avatar"></div>
+          </div>
+          <div class="search">🔍 搜索影片、剧集、演员</div>
+          <div class="tabs">
+            <span class="active">首页</span><span>电影</span><span>剧集</span><span>动漫</span><span>综艺</span><span>直播</span>
+          </div>
+          <div class="grid">
+            <div class="card"><div class="poster p1"></div><div class="t">至尊马蒂</div><div class="s">7.3 剧情</div></div>
+            <div class="card"><div class="poster p2"></div><div class="t">繁花年代</div><div class="s">8.1 爱情</div></div>
+            <div class="card"><div class="poster p3"></div><div class="t">星际回响</div><div class="s">7.9 科幻</div></div>
+            <div class="card"><div class="poster p4"></div><div class="t">荒野寻踪</div><div class="s">6.8 冒险</div></div>
+            <div class="card"><div class="poster p5"></div><div class="t">春日在野</div><div class="s">8.4 治愈</div></div>
+            <div class="card"><div class="poster p6"></div><div class="t">暗夜行者</div><div class="s">7.5 悬疑</div></div>
+          </div>
+        </div>
+        <div class="fab">≡</div>
+        <div class="menu">
+          <div>🔄 刷新</div>
+          <div>🏠 首页</div>
+          <div>🔍 搜索</div>
+          <div>📺 电视直播</div>
+          <div>⚙️ <b>管理面板</b></div>
+          <div>🛠 应用设置</div>
+        </div>
+      </div>
+      <div class="nav">
+        <div class="on"><span class="ic">🏠</span>首页</div>
+        <div><span class="ic">🔍</span>搜索</div>
+        <div><span class="ic">❤️</span>收藏</div>
+        <div><span class="ic">👤</span>我的</div>
+      </div>
+    </div>
+    <p>背景图 + 悬浮菜单（管理面板一键直达）</p>
+  </div>
+
+  <div class="col">
+    <h3>管理面板 · /admin</h3>
+    <div class="phone">
+      <div class="bar"><span>9:41</span><span>YETV Plus ●●●</span></div>
+      <div class="screen">
+        <div class="content" style="background:#12121a;height:100%">
+          <div class="page">
+            <div class="hd"><span class="back">‹</span> 管理面板</div>
+
+            <div class="sec">
+              <h4>站点配置</h4>
+              <div class="row">站点名称<span class="tag">YETVPLUS</span></div>
+              <div class="row">站点公告<span class="tag">已设置</span></div>
+              <div class="row">开放注册<div class="sw on"><i></i></div></div>
+            </div>
+
+            <div class="sec">
+              <h4>视频源配置</h4>
+              <div class="row">资源站 A · dyttzy<span class="tag">有效</span></div>
+              <div class="row">资源站 B · bfzy<span class="tag">有效</span></div>
+              <div class="btn ghost">+ 添加视频源</div>
+            </div>
+
+            <div class="sec">
+              <h4>直播源配置</h4>
+              <div class="row">IPTV 订阅<span class="tag">3 条</span></div>
+              <div class="btn ghost">+ 添加直播源</div>
+            </div>
+
+            <div class="sec">
+              <h4>主题 / 背景</h4>
+              <div class="row">内置主题<span class="tag">dark_blue</span></div>
+              <div class="row">首页背景图<small>可与 App 本地背景叠加</small><span class="tag">已设置</span></div>
+            </div>
+
+            <div class="sec">
+              <h4>网盘 / AI</h4>
+              <div class="row">OpenList 私人影库<span class="tag">已接入</span></div>
+              <div class="row">AI 助手<div class="sw"><i></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav">
+        <div><span class="ic">🏠</span>首页</div>
+        <div class="on"><span class="ic">⚙️</span>管理</div>
+        <div><span class="ic">❤️</span>收藏</div>
+        <div><span class="ic">👤</span>我的</div>
+      </div>
+    </div>
+    <p>长按桌面图标也能直达「管理面板」</p>
+  </div>
+
+  <div class="col">
+    <h3>应用设置 · 原生能力</h3>
+    <div class="phone">
+      <div class="bar"><span>9:41</span><span>YETV Plus ●●●</span></div>
+      <div class="screen">
+        <div class="content" style="background:#12121a;height:100%">
+          <div class="page">
+            <div class="hd"><span class="back">‹</span> 应用设置</div>
+
+            <div class="sec">
+              <h4>服务器</h4>
+              <div class="input">https://mtv.ffurry.cc.cd</div>
+              <div class="row" style="gap:6px">
+                <span class="chip">保存</span><span class="chip">历史地址</span><span class="chip">打开管理面板</span>
+              </div>
+            </div>
+
+            <div class="sec">
+              <h4>显示与交互</h4>
+              <div class="row">桌面模式（网页布局）<div class="sw"><i></i></div></div>
+              <div class="row">沉浸模式<div class="sw"><i></i></div></div>
+              <div class="row">播放时保持屏幕常亮<div class="sw on"><i></i></div></div>
+              <div class="row">播放时自动横屏<div class="sw"><i></i></div></div>
+              <div class="row">显示悬浮菜单按钮<div class="sw on"><i></i></div></div>
+              <div class="row">下拉刷新<div class="sw on"><i></i></div></div>
+            </div>
+
+            <div class="sec">
+              <h4>背景图</h4>
+              <div class="row">启用自定义背景图<div class="sw on"><i></i></div></div>
+              <div class="btn ghost">从相册选择</div>
+              <div class="input">https://…/wallpaper.jpg</div>
+              <div class="label">应用范围</div>
+              <div class="input">全部页面 ▾</div>
+              <div class="label">暗化程度 45%</div>
+              <div class="slider"><i></i></div>
+              <div class="label">模糊程度 0px</div>
+              <div class="slider short"><i></i></div>
+            </div>
+
+            <div class="sec">
+              <h4>高级</h4>
+              <div class="row">拦截广告域名<div class="sw"><i></i></div></div>
+              <div class="row">忽略 SSL 证书错误<div class="sw"><i></i></div></div>
+              <div class="btn ghost">清理缓存</div>
+            </div>
+
+            <div class="sec">
+              <h4>关于</h4>
+              <div class="row">版本<span class="tag">1.0.0</span></div>
+              <div class="row">当前站点<small>https://mtv.ffurry.cc.cd</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p>背景图 / 服务器 / UA / 全屏 / 外部播放器</p>
+  </div>
+
+</div>
+
+<p class="foot">
+  全屏播放 · 返回键优先退出全屏 · 外部播放器（potplayer / vlc / mxplayer …）· 下载走系统 DownloadManager<br>
+  图片长按下载 · 广告域名拦截 · 自定义 UA · 桌面/移动布局切换
+</p>
+
+</body>
+</html>

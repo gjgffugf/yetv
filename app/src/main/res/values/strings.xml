@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">YETV Plus</string>
+
+    <!-- 通用 -->
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="ok">确定</string>
+    <string name="close">关闭</string>
+    <string name="title_settings">应用设置</string>
+
+    <!-- 主界面菜单 -->
+    <string name="menu_refresh">刷新</string>
+    <string name="menu_home">首页</string>
+    <string name="menu_search">搜索</string>
+    <string name="menu_live">电视直播</string>
+    <string name="menu_admin">管理面板</string>
+    <string name="menu_settings">应用设置</string>
+    <string name="menu_exit_fullscreen">退出全屏</string>
+
+    <!-- 提示 -->
+    <string name="toast_press_back_again">再按一次返回键退出</string>
+    <string name="toast_no_app_for_link">没有可打开该链接的应用</string>
+    <string name="toast_download_started">已开始下载，可在通知栏查看</string>
+    <string name="toast_download_failed">下载失败，已尝试用浏览器打开</string>
+    <string name="toast_url_saved">地址已保存，正在重新加载</string>
+    <string name="toast_url_invalid">请输入以 http:// 或 https:// 开头的地址</string>
+    <string name="toast_bg_saved">背景图已保存</string>
+    <string name="toast_bg_pick_failed">图片读取失败，请换一张试试</string>
+    <string name="toast_cache_cleared">缓存已清理</string>
+    <string name="toast_copied">已复制</string>
+
+    <!-- 错误页 -->
+    <string name="error_title">页面加载失败</string>
+    <string name="error_message">无法连接到服务器，请检查网络或服务器地址是否正确。</string>
+    <string name="error_retry">重新加载</string>
+    <string name="error_change_server">修改地址</string>
+
+    <!-- 设置页 -->
+    <string name="cat_server">服务器</string>
+    <string name="server_address">站点地址</string>
+    <string name="server_address_hint">https://mtv.ffurry.cc.cd</string>
+    <string name="server_history">历史地址</string>
+    <string name="server_test">打开管理面板</string>
+
+    <string name="cat_display">显示与交互</string>
+    <string name="desktop_mode">桌面模式（网页布局）</string>
+    <string name="desktop_mode_desc">开启后按电脑浏览器布局渲染，关闭则为手机版布局</string>
+    <string name="custom_ua">自定义 User-Agent</string>
+    <string name="custom_ua_hint">留空使用默认 UA</string>
+    <string name="save_ua">保存 UA</string>
+    <string name="toast_no_history">暂无历史地址</string>
+    <string name="toast_ua_saved">UA 已保存，正在生效</string>
+    <string name="immersive">沉浸模式（隐藏系统栏）</string>
+    <string name="immersive_desc">全屏显示网页内容，刘海屏请谨慎开启</string>
+    <string name="keep_screen_on">播放时保持屏幕常亮</string>
+    <string name="auto_landscape">播放时自动横屏</string>
+    <string name="show_fab">显示悬浮菜单按钮</string>
+    <string name="pull_refresh">下拉刷新</string>
+    <string name="long_press_save">长按图片保存到相册</string>
+
+    <string name="cat_background">背景图</string>
+    <string name="bg_enable">启用自定义背景图</string>
+    <string name="bg_pick_local">从相册选择</string>
+    <string name="bg_online_url">在线图片地址</string>
+    <string name="bg_online_url_hint">https://…/wallpaper.jpg（建议 https）</string>
+    <string name="bg_scope">应用范围</string>
+    <string name="bg_dim">暗化程度</string>
+    <string name="bg_blur">模糊程度</string>
+    <string name="bg_clear">清除背景图</string>
+    <string name="bg_tip">背景图在 App 本地生效，不影响网页端与服务器配置；暗化越高文字越清晰。</string>
+
+    <string name="cat_advanced">高级</string>
+    <string name="adblock_enable">拦截广告域名</string>
+    <string name="adblock_rules">拦截规则（每行一个域名）</string>
+    <string name="ignore_ssl">忽略 SSL 证书错误</string>
+    <string name="ignore_ssl_desc">仅自建证书场景开启，存在安全风险</string>
+    <string name="clear_cache">清理缓存</string>
+    <string name="inject_media_hook">播放状态监听（常亮/横屏）</string>
+
+    <string name="cat_about">关于</string>
+    <string name="about_version">版本</string>
+    <string name="about_site">当前站点</string>
+    <string name="about_open_web">用浏览器打开当前页面</string>
+
+    <!-- 背景图范围 -->
+    <string-array name="bg_scope_entries">
+        <item>全部页面</item>
+        <item>仅首页</item>
+        <item>仅登录/注册页</item>
+    </string-array>
+    <string-array name="bg_scope_values">
+        <item>all</item>
+        <item>home</item>
+        <item>login</item>
+    </string-array>
+
+    <!-- Shortcuts -->
+    <string name="shortcut_home">首页</string>
+    <string name="shortcut_home_long">打开首页</string>
+    <string name="shortcut_search">搜索</string>
+    <string name="shortcut_search_long">搜索影视</string>
+    <string name="shortcut_live">直播</string>
+    <string name="shortcut_live_long">电视直播</string>
+    <string name="shortcut_admin">管理面板</string>
+    <string name="shortcut_admin_long">打开管理面板</string>
+</resources>
