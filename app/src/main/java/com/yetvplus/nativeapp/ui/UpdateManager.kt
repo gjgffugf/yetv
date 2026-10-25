@@ -14,6 +14,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
+import com.yetvplus.nativeapp.BuildConfig
 
 /**
  * 应用内更新。
@@ -37,12 +38,12 @@ import java.util.concurrent.TimeUnit
  */
 object UpdateManager {
 
-    // ==================== 改成你自己的仓库 ====================
+    // ==================== 更新源 ====================
     private const val OWNER = "gjgffugf"
     private const val REPO = "update"
     private const val BRANCH = "main"
     private const val FILE = "yetvplusupdate.json"
-    // ========================================================
+    // ================================================
 
     private const val RAW = "https://raw.githubusercontent.com/$OWNER/$REPO/$BRANCH/$FILE"
 
@@ -147,11 +148,10 @@ object UpdateManager {
                 progress.onProgress(-1)
                 return@withContext null
             }
-            val dir = File(
-                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                    ?: context.cacheDir
-            ).apply { if (!exists()) mkdirs() }
-            val file = File(dir, "YETVPlus-v${info.versionName}.apk")
+            val base: java.io.File? = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            val dir: java.io.File = java.io.File(base ?: context.cacheDir, "update")
+            if (!dir.exists()) dir.mkdirs()
+            val file = java.io.File(dir, "YETVPlus-v${info.versionName}.apk")
             doDownload(info.apkUrl, file, progress)
         }
 

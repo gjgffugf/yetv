@@ -60,6 +60,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import com.yetvplus.nativeapp.ui.theme.LocalSurfaceLight
 
 private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级")
 

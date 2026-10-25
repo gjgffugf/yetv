@@ -17,9 +17,6 @@ val darkModeState = mutableStateOf(true)
 /** 待安装的更新；非空时弹出更新提示 */
 val pendingUpdate = mutableStateOf<com.yetvplus.nativeapp.ui.UpdateManager.UpdateInfo?>(null)
 
-/** 本次启动是否已经检查过更新（避免重复弹窗） */
-var updateChecked: Boolean = false
-
 /**
  * 跨页面保留的界面状态。
  *
@@ -44,6 +41,9 @@ object UiState {
 
     /** 已经加载完成的关键词；切走再切回时用它判断要不要重新请求 */
     var loadedQuery: String = ""
+
+    /** 本次启动是否已经检查过更新（避免重复弹窗） */
+    var updateChecked: Boolean = false
 
     fun resetSearch() {
         keyword = ""

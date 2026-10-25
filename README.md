@@ -241,7 +241,9 @@ GET /api/config/custom_category 404
 
 ### 应用内更新怎么配置
 
-1. 改 `ui/UpdateManager.kt` 顶部的 `OWNER / REPO / BRANCH`（默认 `yetvplus/yetvplus-app/main`）
+更新源已配置为：`https://raw.githubusercontent.com/gjgffugf/update/main/yetvplusupdate.json`
+
+1. 如需改动，改 `ui/UpdateManager.kt` 顶部的 `OWNER / REPO / BRANCH / FILE`
 2. 仓库里放 `update.json`：
 
 ```json

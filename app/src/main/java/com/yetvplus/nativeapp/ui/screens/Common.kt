@@ -378,10 +378,10 @@ private fun episodePages(total: Int): List<IntRange> {
  * - 右上角一行放「正序 / 倒序」切换，以及每 100 集一段的分段标签
  * - 集数按钮：看完=实色，看过没看完=从左到右按进度填充，未看=默认灰
  */
-@Composable
 /** 正在播放的那一集用金色边框标记 */
 private val EpisodeBorderGold = Color(0xFFD9A441)
 
+@Composable
 fun EpisodeSection(
     episodes: List<Episode>,
     finished: (Int) -> Boolean,

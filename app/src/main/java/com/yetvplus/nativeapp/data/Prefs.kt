@@ -210,11 +210,6 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("dark_mode", true)
         set(value) = sp.edit().putBoolean("dark_mode", value).apply()
 
-    /** 背景暗化程度 0~1 */
-    var bgDim: Float
-        get() = sp.getFloat("bg_dim", 0.55f)
-        set(value) = sp.edit().putFloat("bg_dim", value).apply()
-
     /** 目标刷新率（Hz）；0 表示跟随系统 */
     var refreshRate: Int
         get() = sp.getInt("refresh_rate", 0)
