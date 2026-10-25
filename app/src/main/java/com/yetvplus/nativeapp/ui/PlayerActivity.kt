@@ -67,7 +67,6 @@ import kotlinx.coroutines.delay
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.foundation.layout.Spacer
 import com.yetvplus.nativeapp.ui.screens.EpisodeSection
-import androidx.compose.foundation.layout.weight
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"

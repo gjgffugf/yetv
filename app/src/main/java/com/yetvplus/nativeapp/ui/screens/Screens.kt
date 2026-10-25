@@ -77,7 +77,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import com.yetvplus.nativeapp.ui.theme.THEME_PRESETS
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.weight
 import androidx.compose.ui.layout.ContentScale
 
 // ---------------- 首页 ----------------

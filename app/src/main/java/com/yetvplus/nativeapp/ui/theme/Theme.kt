@@ -20,16 +20,21 @@ val TextSecondary = Color(0xFFA0A0B8)
 /** 当前主色，可运行时切换（个性化 → 默认色） */
 val LocalBrand = staticCompositionLocalOf { Brand }
 
-/** 预设可选主色 */
-val THEME_PRESETS = listOf(
-    "紫" to 0xFF7C6BFF,
-    "蓝" to 0xFF2E7CF6,
-    "青" to 0xFF12B8A6,
-    "绿" to 0xFF22A06B,
-    "橙" to 0xFFFF8A3D,
-    "红" to 0xFFE5484D,
-    "粉" to 0xFFE0559B,
-    "金" to 0xFFD9A441
+/**
+ * 预设可选主色。
+ * 注意：0xFF7C6BFF 这类字面量超过 Int 上限，Kotlin 会推断成 Long，
+ * 必须显式 toInt() 并声明为 Int，否则跟 Prefs.themeColor(Int) 比较会报类型不匹配。
+ * Color(Int) 接受的正是这个「负数」形式的 ARGB。
+ */
+val THEME_PRESETS: List<Pair<String, Int>> = listOf(
+    "紫" to 0xFF7C6BFF.toInt(),
+    "蓝" to 0xFF2E7CF6.toInt(),
+    "青" to 0xFF12B8A6.toInt(),
+    "绿" to 0xFF22A06B.toInt(),
+    "橙" to 0xFFFF8A3D.toInt(),
+    "红" to 0xFFE5484D.toInt(),
+    "粉" to 0xFFE0559B.toInt(),
+    "金" to 0xFFD9A441.toInt()
 )
 
 @Composable
