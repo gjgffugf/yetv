@@ -75,6 +75,10 @@ import androidx.compose.animation.core.tween
 import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
 import com.yetvplus.nativeapp.ui.PlayerArgs
 import com.yetvplus.nativeapp.data.VideoItem
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlinx.coroutines.launch
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
@@ -158,6 +162,9 @@ private fun PlayerScreen(
     var fullscreen by remember { mutableStateOf(false) }
     // 播放器控件是否可见；全屏按钮跟随它显隐，不再常驻
     var controlsVisible by remember { mutableStateOf(true) }
+    // 长按快进中
+    var speeding by remember { mutableStateOf(false) }
+    var savedSpeed by remember { mutableFloatStateOf(1f) }
 
     // 切源后的分集（源自带时直接用，否则回退到打开时传入的）
     val activeUrls = remember(variantIndex, variants) {
@@ -188,6 +195,21 @@ private fun PlayerScreen(
             )
             .build()
             .apply { playWhenReady = true }
+    }
+
+    // 用 UpdatedState 包一层，保证原生按钮点击时拿到最新的目标状态
+    val toggleFullscreen = rememberUpdatedState { fullscreen = !fullscreen }
+    LaunchedEffect(fullscreen) {
+        fullscreenButtonRef?.text = if (fullscreen) "退出" else "全屏"
+    }
+
+    // 长按快进：记录原速，松手还原
+    fun setSpeed(v: Float) {
+        if (v != 1f) {
+            val cur = player.playbackParameters.speed
+            if (cur == 1f) savedSpeed = cur
+        }
+        player.playbackParameters = androidx.media3.common.PlaybackParameters(v)
     }
 
     // 切集 / 退出前落盘进度
@@ -267,7 +289,13 @@ private fun PlayerScreen(
             // ---- 全屏模式 ----
             VideoArea(
                 player = player,
-                modifier = Modifier.fillMaxSize(),
+                onToggleFullscreen = { toggleFullscreen.value() },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .longPressFastForward(
+                        onStart = { setSpeed(3f); speeding = true },
+                        onEnd = { setSpeed(savedSpeed); speeding = false }
+                    ),
                 rounded = false,
                 onControllerVisibility = { controlsVisible = it }
             )
@@ -304,27 +332,7 @@ private fun PlayerScreen(
             }
             }
 
-            // 退出全屏按钮：跟随控件显隐，并左移一个按钮距离，避免挡住设置按钮
-            AnimatedVisibility(
-                visible = controlsVisible,
-                modifier = Modifier.align(Alignment.BottomEnd),
-                enter = fadeIn(tween(180)),
-                exit = fadeOut(tween(180))
-            ) {
-                IconButton(
-                    onClick = { fullscreen = false },
-                    modifier = Modifier
-                        .padding(end = 66.dp, bottom = 18.dp)
-                        .size(44.dp)
-                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(22.dp))
-                ) {
-                    Icon(
-                        Icons.Default.FullscreenExit,
-                        contentDescription = "退出全屏",
-                        tint = Color.White
-                    )
-                }
-            }
+            if (speeding) FastForwardHint()
 
             if (error.isNotEmpty()) {
                 ErrorOverlay(error)
@@ -343,9 +351,14 @@ private fun PlayerScreen(
                 ) {
                     VideoArea(
                         player = player,
+                        onToggleFullscreen = { toggleFullscreen.value() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(16f / 9f),
+                            .aspectRatio(16f / 9f)
+                            .longPressFastForward(
+                                onStart = { setSpeed(3f); speeding = true },
+                                onEnd = { setSpeed(savedSpeed); speeding = false }
+                            ),
                         rounded = false,
                         onControllerVisibility = { controlsVisible = it }
                     )
@@ -376,28 +389,7 @@ private fun PlayerScreen(
                         )
                     }
 
-                    // 全屏按钮：视频窗口右下角，跟随播放控件一起显隐
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = controlsVisible,
-                        modifier = Modifier.align(Alignment.BottomEnd),
-                        enter = fadeIn(tween(180)),
-                        exit = fadeOut(tween(180))
-                    ) {
-                        IconButton(
-                            onClick = { fullscreen = true },
-                            modifier = Modifier
-                                .padding(10.dp)
-                                .size(38.dp)
-                                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(19.dp))
-                        ) {
-                            Icon(
-                                Icons.Default.Fullscreen,
-                                contentDescription = "全屏",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
+                    if (speeding) FastForwardHint()
 
                     if (error.isNotEmpty()) {
                         ErrorOverlay(error)
@@ -470,12 +462,37 @@ private fun PlayerScreen(
     }
 }
 
+/**
+ * 长按视频 3 倍速快进。
+ * 按下超过 [LONG_PRESS_MS] 毫秒开始加速，松手恢复原速。
+ */
+private fun Modifier.longPressFastForward(
+    onStart: () -> Unit,
+    onEnd: () -> Unit
+): Modifier = this.pointerInput(Unit) {
+    detectTapGestures(
+        onPress = {
+            val job = launch {
+                delay(FAST_FORWARD_HOLD_MS)
+                onStart()
+            }
+            tryAwaitRelease()
+            job.cancel()
+            onEnd()
+        }
+    )
+}
+
+/** 长按多久开始快进 */
+private const val FAST_FORWARD_HOLD_MS = 350L
+
 @Composable
 private fun VideoArea(
     player: ExoPlayer,
     modifier: Modifier,
     rounded: Boolean,
-    onControllerVisibility: ((Boolean) -> Unit)? = null
+    onControllerVisibility: ((Boolean) -> Unit)? = null,
+    onToggleFullscreen: (() -> Unit)? = null
 ) {
     AndroidView(
         factory = { ctx ->
@@ -484,11 +501,17 @@ private fun VideoArea(
                 useController = true
                 keepScreenOn = true
                 controllerShowTimeoutMs = 2500
+                // 全屏按钮并入 ExoPlayer 自带的控制条（和进度条/暂停同一层）
+                if (onToggleFullscreen != null) attachControlButton(this, onToggleFullscreen)
                 onControllerVisibility?.let { cb ->
                     // PlayerView 有两个同名重载，必须显式指定类型，否则重载解析歧义
                     setControllerVisibilityListener(
                         PlayerView.ControllerVisibilityListener { v: Int ->
-                            cb(v == android.view.View.VISIBLE)
+                            val visible = v == android.view.View.VISIBLE
+                            // 兜底：若按钮挂在 PlayerView 上则手动同步显隐
+                            findViewWithTag<android.view.View>(FS_BUTTON_TAG)?.visibility =
+                                if (visible) android.view.View.VISIBLE else android.view.View.GONE
+                            cb(visible)
                         }
                     )
                 }
@@ -496,6 +519,69 @@ private fun VideoArea(
         },
         modifier = modifier
     )
+}
+
+/** 控制条里全屏按钮的标记 */
+private const val FS_BUTTON_TAG = "yetv_fs_button"
+
+/** 当前全屏按钮实例（用于切换"全屏 / 退出全屏"文案） */
+private var fullscreenButtonRef: android.widget.TextView? = null
+
+/**
+ * 把全屏按钮塞进播放器控制条里，和进度条、暂停、设置按钮同一层，
+ * 随控制条一起显示/隐藏，不再是悬浮在上层的独立按钮。
+ * 位置：底部控制行右侧，往左让开一格，避免压住设置按钮。
+ */
+private fun attachControlButton(playerView: PlayerView, onToggle: () -> Unit) {
+    try {
+        val ctx = playerView.context
+        val density = ctx.resources.displayMetrics.density
+        val btn = android.widget.TextView(ctx).apply {
+            tag = FS_BUTTON_TAG
+            text = "全屏"
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 12f
+            gravity = android.view.Gravity.CENTER
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0x73000000.toInt())
+                cornerRadius = 20f * density
+            }
+            setOnClickListener { onToggle() }
+        }
+        val size = (40 * density).toInt()
+        val lp = android.widget.FrameLayout.LayoutParams(
+            size, size,
+            android.view.Gravity.BOTTOM or android.view.Gravity.END
+        )
+        lp.rightMargin = (58 * density).toInt()
+        lp.bottomMargin = (42 * density).toInt()
+
+        val cid = ctx.resources.getIdentifier("exo_controller", "id", ctx.packageName)
+        val controller =
+            if (cid != 0) playerView.findViewById<android.view.ViewGroup>(cid) else null
+        if (controller != null) controller.addView(btn, lp) else playerView.addView(btn, lp)
+        fullscreenButtonRef = btn
+    } catch (ignored: Exception) {
+    }
+}
+
+/** 长按快进中的提示 */
+@Composable
+private fun FastForwardHint() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize(),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 48.dp)
+                .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+        ) {
+            Text("3× 快进中…", color = Color.White, fontSize = 13.sp)
+        }
+    }
 }
 
 @Composable

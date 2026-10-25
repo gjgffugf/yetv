@@ -32,11 +32,15 @@ object UiState {
     /** 是否已有一次成功/失败的搜索（决定显示结果还是空态） */
     var searched: Boolean = false
 
+    /** 已经加载完成的关键词；切走再切回时用它判断要不要重新请求 */
+    var loadedQuery: String = ""
+
     fun resetSearch() {
         keyword = ""
         submitted = ""
         results = emptyList()
         groups = emptyList()
         searched = false
+        loadedQuery = ""
     }
 }

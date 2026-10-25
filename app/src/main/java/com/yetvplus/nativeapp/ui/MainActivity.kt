@@ -68,12 +68,18 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import com.yetvplus.nativeapp.data.SearchGroup
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.runtime.mutableStateOf
 
 object Route {
     const val LOGIN = "login"
@@ -245,11 +251,8 @@ private fun AppRoot() {
  * 底部液态玻璃 Dock 栏。
  *
  * - 半透明渐变 + 高光描边 + 悬浮阴影
- * - 选中项下方有胶囊滑块，用 spring 动画平移
- * - 支持长按后左右拖动切换，拖动过程中实时切页
- *
- * 对齐要点：滑块与每一项内容都用同一个高度（ITEM_H）并以容器垂直中心对齐，
- * 这样滑块必然落在图标+文字的正中间。
+ * - 选中项下方有胶囊滑块（与选项内容等高、同一垂直中心，保证居中）
+ * - 只通过滑块切换：长按 350ms 后滑块放大并可拖动，拖动中实时切页
  */
 @Composable
 private fun GlassDock(
@@ -260,13 +263,22 @@ private fun GlassDock(
     val brand = LocalBrand.current
     val index = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
     val n = tabs.size.coerceAtLeast(1)
-    val itemH = 48.dp
+    val routeState = rememberUpdatedState(currentRoute)
+
+    // 拖动中：滑块放大，提示"已选中，可滑动"
+    var dragging by remember { mutableStateOf(false) }
+    val pillScale by animateFloatAsState(
+        targetValue = if (dragging) 1.16f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 420f),
+        label = "pillScale"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
+        // contentAlignment 保证滑块与选项行共用同一个垂直中心
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -285,40 +297,50 @@ private fun GlassDock(
                     1.dp,
                     Color.White.copy(alpha = 0.18f),
                     RoundedCornerShape(30.dp)
-                )
+                ),
+            contentAlignment = Alignment.CenterStart
         ) {
             val innerPad = 6.dp
             val slotW = (maxWidth - innerPad * 2) / n
-
-            // 拖动切换：长按后在栏内左右滑动，手指经过哪一项就切到哪一项
             val slotPx = with(LocalDensity.current) { slotW.toPx() }
             val padPx = with(LocalDensity.current) { innerPad.toPx() }
             val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
-            fun idxAt(x: Float): Int {
-                val i = ((x - padPx) / slotPx).toInt()
-                return i.coerceIn(0, n - 1)
-            }
+            fun idxAt(x: Float) = ((x - padPx) / slotPx).toInt().coerceIn(0, n - 1)
+
+            // 手势：长按 350ms 后进入拖动，拖动过程中实时切页
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .pointerInput(tabs, n) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = { offset ->
-                                if (offset.x in 0f..widthPx) {
-                                    val t = tabs[idxAt(offset.x)]
-                                    if (t.route != currentRoute) onSelect(t.route)
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val slop = viewConfiguration.touchSlop
+                            // 等 350ms：期间若抬起或移动超出容差就不算长按
+                            val isLongPress = withTimeoutOrNull(LONG_PRESS_MS) {
+                                while (true) {
+                                    val e = awaitPointerEvent()
+                                    val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (!c.pressed) break
+                                    if ((c.position - down.position).getDistance() > slop) break
                                 }
-                            },
-                            onDrag = { change, _ ->
-                                val x = change.position.x
-                                if (x in 0f..widthPx) {
-                                    val t = tabs[idxAt(x)]
-                                    if (t.route != currentRoute) onSelect(t.route)
+                            } == null
+                            if (!isLongPress) return@awaitEachGesture
+                            dragging = true
+                            try {
+                                while (true) {
+                                    val e = awaitPointerEvent()
+                                    val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (!c.pressed) break
+                                    val x = c.position.x
+                                    if (x in 0f..widthPx) {
+                                        val t = tabs[idxAt(x)]
+                                        if (t.route != routeState.value) onSelect(t.route)
+                                    }
                                 }
-                            },
-                            onDragEnd = {},
-                            onDragCancel = {}
-                        )
+                            } finally {
+                                dragging = false
+                            }
+                        }
                     }
             )
 
@@ -331,8 +353,11 @@ private fun GlassDock(
                 modifier = Modifier
                     .offset(x = offsetX)
                     .width(slotW)
-                    .height(itemH)
-                    .align(Alignment.CenterStart)
+                    .height(48.dp)
+                    .graphicsLayer {
+                        scaleX = pillScale
+                        scaleY = pillScale
+                    }
                     .clip(RoundedCornerShape(23.dp))
                     .background(brand.copy(alpha = 0.20f))
                     .border(
@@ -342,6 +367,7 @@ private fun GlassDock(
                     )
             )
 
+            // 选项只用于显示，不再单独响应点击（切换统一走滑块）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -350,7 +376,7 @@ private fun GlassDock(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 tabs.forEach { t ->
-                    val selected = currentRoute == t.route
+                    val selected = t.route == routeState.value
                     val size by animateDpAsState(
                         targetValue = if (selected) 25.dp else 22.dp,
                         label = "dockIcon"
@@ -362,9 +388,7 @@ private fun GlassDock(
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .height(itemH)
-                            .clip(RoundedCornerShape(22.dp))
-                            .clickable { onSelect(t.route) },
+                            .height(48.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -386,3 +410,6 @@ private fun GlassDock(
         }
     }
 }
+
+/** Dock 长按判定时间 */
+private const val LONG_PRESS_MS = 350L

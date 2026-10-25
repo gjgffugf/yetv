@@ -68,6 +68,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.collect
 import com.yetvplus.nativeapp.data.SearchGroup
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 
 
 
@@ -304,7 +305,8 @@ fun DoubanGrid(
             DoubanCard(item) { onClick(item) }
         }
         if (loadingMore) {
-            item {
+            // 整行居中：不占一个网格格子，避免只出现在最左列
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

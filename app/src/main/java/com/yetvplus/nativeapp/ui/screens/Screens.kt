@@ -248,12 +248,18 @@ fun SearchScreen(app: YETVApp, onOpen: (SearchGroup) -> Unit) {
             UiState.results = emptyList()
             return@LaunchedEffect
         }
+        // 切走再切回：这个关键词已经加载过了，直接复用，不再显示"搜索中…"
+        if (attempt == 0 && submitted == UiState.loadedQuery && UiState.groups.isNotEmpty()) {
+            if (results.isEmpty()) results.addAll(UiState.groups)
+            return@LaunchedEffect
+        }
         loading = true
         error = ""
         results.clear()
         val merge = prefs.mergeSearch
         val res = runCatching { app.repo.searchGrouped(submitted, merge) }
         loading = false
+        UiState.loadedQuery = submitted
         if (res.isSuccess) {
             val list = res.getOrElse { emptyList() }
             results.addAll(list)

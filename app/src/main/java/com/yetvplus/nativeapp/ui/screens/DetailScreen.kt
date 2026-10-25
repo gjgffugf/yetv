@@ -57,6 +57,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableIntStateOf
 import com.yetvplus.nativeapp.ui.PlayerArgs
 import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
+import kotlinx.coroutines.delay
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
@@ -71,8 +72,12 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
     var error by remember { mutableStateOf("") }
 
     LaunchedEffect(base.key) {
+        // 切源时也要有明确反馈：先显示加载中，再出结果
+        loading = true
         // 抓包确认：搜索结果已带完整 m3u8 分集，直接用，省掉一次详情请求
         if (base.episodes.isNotEmpty()) {
+            // 极短的展示时间，避免一闪而过看不出在加载
+            delay(180)
             info = DetailInfo(base, base.episodes)
             loading = false
             return@LaunchedEffect
