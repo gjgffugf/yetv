@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "YETVPlus"
+rootProject.name = "YETVPlusNative"
 include(":app")

@@ -4,23 +4,21 @@ plugins {
 }
 
 android {
-    namespace = "com.yetvplus.app"
+    namespace = "com.yetvplus.native"
     compileSdk = 34
 
-    // 云端打包时传入 -PMTV_STORE_FILE=xxx.jks 即启用正式签名，否则回退 debug 签名
     val customStoreFile = project.findProperty("MTV_STORE_FILE") as String?
     val useCustomSigning = !customStoreFile.isNullOrBlank()
 
     defaultConfig {
-        applicationId = "com.yetvplus.app"
-        minSdk = 23
+        applicationId = "com.yetvplus.native"
+        minSdk = 24
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
     }
 
     signingConfigs {
-        // 本地/云端可选签名：传入 -PMTV_STORE_FILE=xxx.jks 即启用
         create("release") {
             if (useCustomSigning) {
                 storeFile = file(customStoreFile!!)
@@ -59,7 +57,15 @@ android {
         jvmTarget = "17"
     }
 
-    packagingOptions {
+    buildFeatures {
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.3"
+    }
+
+    packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 
@@ -71,8 +77,29 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.activity:activity-ktx:1.8.2")
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
-    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
+    // Compose
+    implementation(platform("androidx.compose:compose-bom:2023.10.01"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.navigation:navigation-compose:2.7.6")
+
+    // 网络
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // 图片
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // 播放器（Media3 / ExoPlayer，支持 HLS）
+    implementation("androidx.media3:media3-exoplayer:1.2.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.2.0")
+    implementation("androidx.media3:media3-ui:1.2.0")
+
+    debugImplementation("androidx.compose.ui:ui-tooling")
 }

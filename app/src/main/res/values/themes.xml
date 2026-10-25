@@ -1,44 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.YETVPlus" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/brand</item>
-        <item name="colorPrimaryDark">@color/brand_dark</item>
-        <item name="colorAccent">@color/accent</item>
-        <item name="android:windowBackground">@drawable/splash_bg</item>
-        <item name="android:statusBarColor">@color/brand_dark</item>
-        <item name="android:navigationBarColor">@color/brand_dark</item>
+    <style name="Theme.YETVPlusNative" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowTranslucentStatus">false</item>
     </style>
 
-    <style name="Theme.YETVPlus.Settings" parent="Theme.YETVPlus">
-        <item name="android:windowBackground">@color/window_bg</item>
-        <item name="android:statusBarColor">@color/window_bg</item>
-        <item name="android:navigationBarColor">@color/window_bg</item>
+    <style name="Theme.YETVPlusNative.Player" parent="Theme.YETVPlusNative">
+        <item name="android:windowFullscreen">true</item>
     </style>
-
-    <style name="SettingsCard" parent="android:Widget">
-        <item name="android:background">@drawable/bg_card</item>
-        <item name="android:orientation">vertical</item>
-        <item name="android:layout_marginTop">14dp</item>
-        <item name="android:padding">12dp</item>
-    </style>
-
-    <style name="TextTitle" parent="android:Widget.TextView">
-        <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">16sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-
-    <style name="TextBody" parent="android:Widget.TextView">
-        <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">15sp</item>
-    </style>
-
-    <style name="TextHint" parent="android:Widget.TextView">
-        <item name="android:textColor">@color/text_secondary</item>
-        <item name="android:textSize">12sp</item>
-    </style>
-
 </resources>

@@ -1,0 +1,225 @@
+package com.yetvplus.native.ui.screens
+
+import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.yetvplus.native.YETVApp
+import com.yetvplus.native.data.DetailInfo
+import com.yetvplus.native.data.VideoItem
+import com.yetvplus.native.ui.NavArgs
+import com.yetvplus.native.ui.PlayerActivity
+import com.yetvplus.native.ui.theme.Brand
+import com.yetvplus.native.ui.theme.Surface
+import com.yetvplus.native.ui.theme.SurfaceLight
+import com.yetvplus.native.ui.theme.TextPrimary
+import com.yetvplus.native.ui.theme.TextSecondary
+
+@Composable
+fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val base = NavArgs.video ?: VideoItem()
+    var info by remember { mutableStateOf(DetailInfo(base)) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf("") }
+
+    LaunchedEffect(base.key) {
+        // 抓包确认：搜索结果已带完整 m3u8 分集，直接用，省掉一次详情请求
+        if (base.episodes.isNotEmpty()) {
+            info = DetailInfo(base, base.episodes)
+            loading = false
+            return@LaunchedEffect
+        }
+        if (base.source.isEmpty() || base.id.isEmpty()) {
+            loading = false
+            error = "该条目缺少 source / id，且未自带播放地址"
+            return@LaunchedEffect
+        }
+        loading = true
+        error = ""
+        val res = runCatching { app.repo.detail(base.source, base.id) }
+        loading = false
+        if (res.isSuccess) {
+            val d = res.getOrThrow()
+            info = if (d.episodes.isEmpty()) d.copy(item = base) else d
+            if (d.episodes.isEmpty()) error = "暂未获取到播放地址"
+        } else {
+            error = "详情加载失败：${res.exceptionOrNull()?.message ?: "未知错误"}"
+        }
+    }
+
+    val item = info.item
+    val poster = item.poster.ifEmpty { base.poster }
+    // 分集可能挂在 base 上（搜索结果自带），也可能来自详情
+    val episodes = info.episodes.ifEmpty { base.episodes }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = TextPrimary)
+            }
+            Text(
+                item.title.ifEmpty { base.title },
+                color = TextPrimary,
+                fontSize = 17.sp,
+                maxLines = 1
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp)
+        ) {
+            Row(modifier = Modifier.padding(bottom = 12.dp)) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context).data(poster).crossfade(true).build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .width(108.dp)
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Surface)
+                )
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text(
+                        item.title.ifEmpty { base.title },
+                        color = TextPrimary, fontSize = 16.sp
+                    )
+                    val meta = listOfNotNull(
+                        item.rate.takeIf { it.isNotEmpty() },
+                        item.year.takeIf { it.isNotEmpty() },
+                        item.typeName.takeIf { it.isNotEmpty() },
+                        item.sourceName.takeIf { it.isNotEmpty() }
+                    ).joinToString(" · ")
+                    if (meta.isNotEmpty()) {
+                        Text(meta, color = TextSecondary, fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 6.dp))
+                    }
+                    if (item.note.isNotEmpty()) {
+                        Text(item.note, color = TextSecondary, fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+
+            if (item.desc.isNotBlank()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Surface),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        item.desc, color = TextSecondary, fontSize = 13.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
+            when {
+                loading -> {
+                    Box(modifier = Modifier.fillMaxWidth().height(120.dp),
+                        contentAlignment = Alignment.Center) {
+                        Text("加载中…", color = TextSecondary, fontSize = 13.sp)
+                    }
+                }
+                error.isNotEmpty() -> {
+                    Text(error, color = Color(0xFFFFC46B), fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 14.dp))
+                }
+                episodes.isNotEmpty() -> {
+                    SectionTitle("选集（${episodes.size}）")
+                    EpisodeGrid(episodes) { index ->
+                        val urls = ArrayList(episodes.map { it.url })
+                        val names = ArrayList(episodes.map { it.name })
+                        val i = Intent(context, PlayerActivity::class.java).apply {
+                            putStringArrayListExtra("urls", urls)
+                            putStringArrayListExtra("names", names)
+                            putExtra("index", index)
+                            putExtra("title", item.title.ifEmpty { base.title })
+                        }
+                        context.startActivity(i)
+                    }
+                }
+                else -> {
+                    Text("暂未获取到播放地址", color = TextSecondary, fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 14.dp))
+                }
+            }
+
+            Box(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun EpisodeGrid(list: kotlin.collections.List<com.yetvplus.native.data.Episode>, onClick: (Int) -> Unit) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(4),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(((list.size / 4 + 1) * 46).coerceAtMost(300).dp),
+        contentPadding = PaddingValues(0.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        itemsIndexed(list) { i, ep ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(SurfaceLight)
+                    .clickable { onClick(i) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(ep.name, color = TextPrimary, fontSize = 12.sp, maxLines = 1)
+            }
+        }
+    }
+}

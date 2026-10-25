@@ -1,6 +1,6 @@
--keepattributes *Annotation*, JavascriptInterface
--keepclassmembers class * {
-    @android.webkit.JavascriptInterface <methods>;
-}
--keep class com.yetvplus.app.** { *; }
--dontwarn android.webkit.**
+-keepattributes *Annotation*
+-keep class com.yetvplus.native.data.** { *; }
+-keep class com.google.gson.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn androidx.media3.**

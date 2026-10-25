@@ -34,7 +34,6 @@ jobs:
           SDK="$ANDROID_HOME"
           mkdir -p "$SDK/licenses"
 
-          # 预写许可哈希，避免 sdkmanager 交互式提问
           printf '%s\n' \
             "24333f8a63b6825ea9c5514f83c2829b004d1fee" \
             "8933bad161af4178b1185d1a37fbf41ea5269c55" \
@@ -56,7 +55,6 @@ jobs:
           [ -x "$SM" ] || SM="$(command -v sdkmanager || true)"
           if [ -z "$SM" ]; then echo "!! 找不到 sdkmanager"; exit 1; fi
           echo "sdkmanager = $SM"
-
           yes 2>/dev/null | timeout 300 "$SM" --licenses > /dev/null 2>&1 || true
 
       - name: 安装 SDK 组件
@@ -67,7 +65,6 @@ jobs:
           [ -x "$SM" ] || SM="$SDK/cmdline-tools/16.0/bin/sdkmanager"
           [ -x "$SM" ] || SM="$(command -v sdkmanager)"
           timeout 900 "$SM" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
-          echo "--- 已安装组件 ---"
           "$SM" --list_installed
 
       - name: 缓存 Gradle
@@ -88,7 +85,7 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: 编译 Release APK（签名失败不影响 Debug 产物）
+      - name: 编译 Release APK
         continue-on-error: true
         run: |
           ./gradlew assembleRelease --no-daemon --stacktrace \
@@ -109,7 +106,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: YETVPlus-APK
+          name: YETVNative-APK
           path: out/*.apk
           if-no-files-found: warn
           retention-days: 30
