@@ -64,6 +64,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.spring
 
 object Route {
     const val LOGIN = "login"
@@ -83,9 +87,12 @@ object NavArgs {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 应用刷新率设置（默认跟随系统）
+        RefreshRate.apply(this, (application as YETVApp).prefs.refreshRate)
         setContent {
-            val app = application as YETVApp
-            val saved = app.prefs.themeColor
+            (application as YETVApp)
+            // 观察可变的主题色状态，设置页一改立刻生效，不用重启
+            val saved = themeArgbState.intValue
             val brand = if (saved == 0) Brand else Color(saved)
             YETVTheme(brandColor = brand) { AppRoot() }
         }
@@ -215,12 +222,15 @@ private fun GlassDock(
     onSelect: (String) -> Unit
 ) {
     val brand = LocalBrand.current
+    val index = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+    val n = tabs.size.coerceAtLeast(1)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
@@ -239,46 +249,70 @@ private fun GlassDock(
                     Color.White.copy(alpha = 0.18f),
                     RoundedCornerShape(30.dp)
                 )
-                .padding(horizontal = 6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            tabs.forEach { t ->
-                val selected = currentRoute == t.route
-                val size by animateDpAsState(
-                    targetValue = if (selected) 26.dp else 22.dp,
-                    label = "dockIcon"
-                )
-                val tint by animateColorAsState(
-                    targetValue = if (selected) brand else TextSecondary,
-                    label = "dockTint"
-                )
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(22.dp))
-                        .then(
-                            if (selected) {
-                                Modifier.background(brand.copy(alpha = 0.16f))
-                            } else Modifier
+            // 滑块：宽度 = 整条 / 项数，横向平移到选中项
+            val slotW = maxWidth / n
+            val padding = 6.dp
+            val pillW = slotW - padding * 2
+            val offsetX by animateDpAsState(
+                targetValue = slotW * index + padding,
+                animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f),
+                label = "dockPill"
+            )
+            Box(
+                modifier = Modifier
+                    .offset(x = offsetX)
+                    .width(pillW)
+                    .height(46.dp)
+                    .align(Alignment.CenterStart)
+                    .clip(RoundedCornerShape(23.dp))
+                    .background(brand.copy(alpha = 0.20f))
+                    .border(
+                        1.dp,
+                        brand.copy(alpha = 0.35f),
+                        RoundedCornerShape(23.dp)
+                    )
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEach { t ->
+                    val selected = currentRoute == t.route
+                    val size by animateDpAsState(
+                        targetValue = if (selected) 26.dp else 22.dp,
+                        label = "dockIcon"
+                    )
+                    val tint by animateColorAsState(
+                        targetValue = if (selected) brand else TextSecondary,
+                        label = "dockTint"
+                    )
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable { onSelect(t.route) }
+                            .padding(vertical = 7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            t.icon,
+                            contentDescription = t.label,
+                            tint = tint,
+                            modifier = Modifier.size(size)
                         )
-                        .clickable { onSelect(t.route) }
-                        .padding(vertical = 7.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        t.icon,
-                        contentDescription = t.label,
-                        tint = tint,
-                        modifier = Modifier.size(size)
-                    )
-                    Text(
-                        t.label,
-                        color = tint,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                        Text(
+                            t.label,
+                            color = tint,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                 }
             }
         }

@@ -234,15 +234,33 @@ object Mapping {
 
     // ---- 视频源配置 ----
 
-    fun parseSources(root: JsonElement?): List<SourceItem> {
-        if (root == null || !root.isJsonObject) return emptyList()
+    /**
+     * 在 JSON 树里按候选键名找节点（广度优先，限深）。
+     * 管理面板各部署返回结构差异很大（有的包 Config、有的包 data），
+     * 逐层猜太脆弱，直接全树搜索最稳。
+     */
+    private fun findNode(root: JsonElement?, names: Set<String>, deep: Int = 6): JsonElement? {
+        if (root == null || deep <= 0) return null
+        if (!root.isJsonObject) return null
         val o = root.asJsonObject
-        val node = when {
-            o.has("sources") -> o.get("sources")
-            o.has("SourceConfig") -> o.get("SourceConfig")
-            o.has("data") -> o.get("data")
-            else -> o
+        for (n in names) {
+            val v = o.get(n)
+            if (v != null && !v.isJsonNull) return v
         }
+        for ((_, v) in o.entrySet()) {
+            if (v.isJsonObject || v.isJsonArray) {
+                val hit = findNode(v, names, deep - 1)
+                if (hit != null) return hit
+            }
+        }
+        return null
+    }
+
+    fun parseSources(root: JsonElement?): List<SourceItem> {
+        if (root == null) return emptyList()
+        // 全树找 sources / SourceConfig / api_site，适配不同部署的包裹层级
+        val node = findNode(root, setOf("sources", "Sources", "SourceConfig", "api_site", "apiSite"))
+            ?: root
         val out = ArrayList<SourceItem>()
         if (node != null && node.isJsonArray) {
             for (e in node.asJsonArray) {
@@ -312,16 +330,27 @@ object Mapping {
             root == null || root.isJsonNull -> return emptyList()
             root.isJsonArray -> root.asJsonArray
             else -> {
-                val o = root.asJsonObject
-                when {
-                    o.has("Users") -> o.get("Users")
-                    o.has("users") -> o.get("users")
-                    o.has("data") -> o.get("data")
-                    else -> return emptyList()
-                }
+                // 全树找 Users / users（常见结构：Config.UserConfig.Users）
+                val hit = findNode(root, setOf("Users", "users", "userList"))
+                if (hit != null && hit.isJsonArray) hit.asJsonArray else return emptyList()
             }
         }
-        if (!arr.isJsonArray) return emptyList()
+        if (!arr.isJsonArray) {
+            val o2 = arr.asJsonObject
+            val out2 = ArrayList<UserItem>()
+            for ((k, v) in o2.entrySet()) {
+                if (!v.isJsonObject) continue
+                val uo = v.asJsonObject
+                out2.add(
+                    UserItem(
+                        username = pick(uo, "username", "name").ifEmpty { k },
+                        role = pick(uo, "role").ifEmpty { "user" },
+                        banned = asBool(uo, "banned", default = false)
+                    )
+                )
+            }
+            return out2
+        }
         val out = ArrayList<UserItem>()
         for (e in arr.asJsonArray) {
             if (!e.isJsonObject) continue

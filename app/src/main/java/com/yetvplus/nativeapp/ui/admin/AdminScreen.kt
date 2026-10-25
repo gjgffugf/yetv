@@ -45,6 +45,13 @@ import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 
 private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级")
 
@@ -86,12 +93,22 @@ fun AdminScreen(app: YETVApp) {
 
         ChipTabs(TABS, tab) { tab = it }
 
-        when (tab) {
-            0 -> SiteTab(app)
-            1 -> SourceTab(app)
-            2 -> CategoryTab(app)
-            3 -> UserTab(app)
-            4 -> AdvancedTab(app)
+        // 顶部栏目切换带横向淡入过渡
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                (fadeIn(tween(200)) + slideInHorizontally(tween(200)) { it / 8 }) togetherWith
+                        (fadeOut(tween(150)) + slideOutHorizontally(tween(150)) { -it / 8 })
+            },
+            label = "adminTab"
+        ) { t ->
+            when (t) {
+                0 -> SiteTab(app)
+                1 -> SourceTab(app)
+                2 -> CategoryTab(app)
+                3 -> UserTab(app)
+                4 -> AdvancedTab(app)
+            }
         }
     }
 }

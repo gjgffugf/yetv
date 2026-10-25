@@ -78,6 +78,13 @@ import androidx.compose.ui.draw.clip
 import com.yetvplus.nativeapp.ui.theme.THEME_PRESETS
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import com.yetvplus.nativeapp.ui.RefreshRate
+import com.yetvplus.nativeapp.ui.themeArgbState
 
 // ---------------- 首页 ----------------
 
@@ -139,9 +146,20 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
         }
         ChipTabs(tags, tagIndex) { tagIndex = it }
 
+        // 栏目切换带淡入过渡
+        AnimatedContent(
+            targetState = "$mediaType:$tagIndex:$loading:${error.isNotEmpty()}",
+            transitionSpec = {
+                fadeIn(tween(200)) togetherWith fadeOut(tween(150))
+            },
+            label = "homeTab"
+        ) { state ->
+            val st = state.split(":")
+            val loadingNow = st[2].toBoolean()
+            val errorNow = st[3].toBoolean()
         when {
-            loading -> LoadingBox()
-            error.isNotEmpty() -> Column(
+            loadingNow -> LoadingBox()
+            errorNow -> Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -164,6 +182,7 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
                     }
                 }
             }
+        }
         }
     }
 }
@@ -259,8 +278,8 @@ fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
             }
         }
 
-        // 搜索历史
-        if (history.isNotEmpty()) {
+        // 搜索历史：只在还没发起搜索时显示，搜索中/有结果时隐藏
+        if (history.isNotEmpty() && submitted.isBlank()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -479,9 +498,9 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
     var bgOn by remember { mutableStateOf(prefs.bgEnabled) }
     var dim by remember { mutableFloatStateOf(prefs.bgDim) }
     var keepOn by remember { mutableStateOf(prefs.keepScreenOn) }
-    var land by remember { mutableStateOf(prefs.autoLandscape) }
     var tip by remember { mutableStateOf("") }
     var themeArgb by remember { mutableIntStateOf(prefs.themeColor) }
+    var refreshHz by remember { mutableIntStateOf(prefs.refreshRate) }
 
     val pickBg = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -536,6 +555,8 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                             .clickable {
                                 themeArgb = argb
                                 prefs.themeColor = argb
+                                // 同步到可观察状态，界面立刻变色
+                                themeArgbState.intValue = argb
                                 tip = "已切换为$name"
                             },
                         contentAlignment = Alignment.Center
@@ -554,6 +575,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
             ActionRow("恢复默认色") {
                 themeArgb = 0
                 prefs.themeColor = 0
+                themeArgbState.intValue = 0
                 tip = "已恢复默认色"
             }
         }
@@ -589,11 +611,51 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
             }
         }
 
+        // ---- 显示 ----
+        SettingsCard("显示") {
+            Text("刷新率", color = TextPrimary, fontSize = 14.sp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val supported = RefreshRate.supported(LocalContext.current as android.app.Activity)
+                (listOf(0) + RefreshRate.OPTIONS).forEach { hz ->
+                    val on = refreshHz == hz
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (on) LocalBrand.current else SurfaceLight,
+                                RoundedCornerShape(10.dp)
+                            )
+                            .clickable {
+                                refreshHz = hz
+                                prefs.refreshRate = hz
+                                val act = LocalContext.current as? android.app.Activity
+                                if (act != null && hz > 0) RefreshRate.apply(act, hz)
+                                tip = if (hz == 0) "已设为跟随系统"
+                                else "已设为 ${hz}Hz${if (hz !in supported) "（设备可能不支持）" else ""}"
+                            }
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (hz == 0) "系统" else "${hz}Hz",
+                            color = if (on) Color.White else TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+            HintText("仅当屏幕支持所选刷新率时生效；高刷会增加耗电。")
+        }
+
         // ---- 播放 ----
         SettingsCard("播放") {
             SwitchRow("播放时保持屏幕常亮", keepOn) { keepOn = it; prefs.keepScreenOn = it }
-            SwitchRow("进入播放自动横屏", land) { land = it; prefs.autoLandscape = it }
-            HintText("默认进入是小窗播放，横屏请点播放器右下角的全屏按钮。")
+            HintText("播放默认竖屏小窗；横屏请点视频右下角的全屏按钮（随播放控件一起显隐）。")
         }
 
         // ---- 缓存与记录 ----

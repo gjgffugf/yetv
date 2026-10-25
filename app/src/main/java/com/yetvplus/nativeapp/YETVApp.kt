@@ -28,6 +28,8 @@ class YETVApp : Application(), ImageLoaderFactory {
         prefs = Prefs(this)
         api = ApiClient(this)
         repo = Repo(api, prefs)
+        // 同步主题色到可观察状态，供界面即时响应
+        com.yetvplus.nativeapp.ui.themeArgbState.intValue = prefs.themeColor
     }
 
     /**

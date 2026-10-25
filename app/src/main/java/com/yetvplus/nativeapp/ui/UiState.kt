@@ -1,6 +1,13 @@
 package com.yetvplus.nativeapp.ui
 
+import androidx.compose.runtime.mutableIntStateOf
 import com.yetvplus.nativeapp.data.VideoItem
+
+/**
+ * 主题色（ARGB）。放在可观察状态里，设置页改了立刻重组，无需重启应用。
+ * 0 表示用默认 Brand。
+ */
+val themeArgbState = mutableIntStateOf(0)
 
 /**
  * 跨页面保留的界面状态。

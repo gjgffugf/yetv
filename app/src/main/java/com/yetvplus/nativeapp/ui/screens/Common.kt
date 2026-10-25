@@ -61,6 +61,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import com.yetvplus.nativeapp.ui.theme.SurfaceLight
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 
 
 
@@ -386,20 +389,21 @@ fun EpisodeSection(
                     itemsIndexed(pages) { i, r ->
                         val label = "${r.first + 1}-${r.last + 1}集"
                         val on = i == page
+                        val bg by animateColorAsState(
+                            targetValue = if (on) LocalBrand.current else SurfaceLight,
+                            animationSpec = tween(220), label = "segBg"
+                        )
+                        val fg by animateColorAsState(
+                            targetValue = if (on) Color.White else TextSecondary,
+                            animationSpec = tween(220), label = "segFg"
+                        )
                         Box(
                             modifier = Modifier
-                                .background(
-                                    if (on) LocalBrand.current else SurfaceLight,
-                                    RoundedCornerShape(12.dp)
-                                )
+                                .background(bg, RoundedCornerShape(12.dp))
                                 .clickable { page = i }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
-                            Text(
-                                label,
-                                color = if (on) Color.White else TextSecondary,
-                                fontSize = 11.sp
-                            )
+                            Text(label, color = fg, fontSize = 11.sp)
                         }
                     }
                 }
@@ -407,19 +411,38 @@ fun EpisodeSection(
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            // 正序 / 倒序
+            // 正序 / 倒序：切换时文字淡入淡出
+            val orderBg by animateColorAsState(
+                targetValue = SurfaceLight, animationSpec = tween(220), label = "orderBg"
+            )
             Box(
                 modifier = Modifier
                     .padding(start = 6.dp)
-                    .background(SurfaceLight, RoundedCornerShape(12.dp))
+                    .background(orderBg, RoundedCornerShape(12.dp))
                     .clickable { asc = !asc }
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
-                Text(if (asc) "正序" else "倒序", color = TextPrimary, fontSize = 11.sp)
+                Crossfade(
+                    targetState = asc,
+                    animationSpec = tween(200),
+                    label = "orderText"
+                ) { isAsc ->
+                    Text(
+                        if (isAsc) "正序" else "倒序",
+                        color = TextPrimary,
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
 
-        // 当前段的集数网格
+        // 当前段的集数网格：换段/换序时整体淡入
+        Crossfade(
+            targetState = page to asc,
+            animationSpec = tween(220),
+            label = "epGrid",
+            modifier = Modifier.fillMaxWidth()
+        ) { _ ->
         LazyVerticalGrid(
             columns = GridCells.Fixed(4),
             modifier = Modifier
@@ -459,6 +482,7 @@ fun EpisodeSection(
                     }
                 }
             }
+        }
         }
     }
 }

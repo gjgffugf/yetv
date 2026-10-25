@@ -67,6 +67,11 @@ import kotlinx.coroutines.delay
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.foundation.layout.Spacer
 import com.yetvplus.nativeapp.ui.screens.EpisodeSection
+import com.yetvplus.nativeapp.ui.themeArgbState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
@@ -75,6 +80,9 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 播放页按设置切刷新率，高刷屏上画面更顺
+        RefreshRate.apply(this, (application as YETVApp).prefs.refreshRate)
 
         val urls = intent.getStringArrayListExtra("urls") ?: arrayListOf()
         val names = intent.getStringArrayListExtra("names") ?: arrayListOf()
@@ -87,15 +95,11 @@ class PlayerActivity : ComponentActivity() {
         if (app.prefs.keepScreenOn) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-        // 进入播放不再强制横屏：先竖屏小窗，横屏由用户点全屏按钮触发
-        requestedOrientation = if (app.prefs.autoLandscape) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR
-        }
+        // 正常情况下一律竖屏；横屏只在用户点右下角全屏按钮时才切
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
 
         setContent {
-            val saved = app.prefs.themeColor
+            val saved = themeArgbState.intValue
             val brand = if (saved == 0) Brand else Color(saved)
             YETVTheme(brandColor = brand) {
                 PlayerScreen(
@@ -146,6 +150,8 @@ private fun PlayerScreen(
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (urls.size - 1).coerceAtLeast(0))) }
     var error by remember { mutableStateOf("") }
     var fullscreen by remember { mutableStateOf(false) }
+    // 播放器控件是否可见；全屏按钮跟随它显隐，不再常驻
+    var controlsVisible by remember { mutableStateOf(true) }
 
     val player = remember {
         val referer = prefs.baseUrl + "/"
@@ -231,7 +237,7 @@ private fun PlayerScreen(
         activity?.requestedOrientation = if (fullscreen) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         } else {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         }
         activity?.window?.apply {
             if (fullscreen) addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
@@ -302,7 +308,8 @@ private fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(16f / 9f),
-                        rounded = false
+                        rounded = false,
+                        onControllerVisibility = { controlsVisible = it }
                     )
 
                     // 返回 + 标题
@@ -331,21 +338,27 @@ private fun PlayerScreen(
                         )
                     }
 
-                    // 全屏按钮：视频窗口右下角
-                    IconButton(
-                        onClick = { fullscreen = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(10.dp)
-                            .size(38.dp)
-                            .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(19.dp))
+                    // 全屏按钮：视频窗口右下角，跟随播放控件一起显隐
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = controlsVisible,
+                        modifier = Modifier.align(Alignment.BottomEnd),
+                        enter = fadeIn(tween(180)),
+                        exit = fadeOut(tween(180))
                     ) {
-                        Icon(
-                            Icons.Default.Fullscreen,
-                            contentDescription = "全屏",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        IconButton(
+                            onClick = { fullscreen = true },
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .size(38.dp)
+                                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(19.dp))
+                        ) {
+                            Icon(
+                                Icons.Default.Fullscreen,
+                                contentDescription = "全屏",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
                     if (error.isNotEmpty()) {
@@ -412,7 +425,12 @@ private fun PlayerScreen(
 }
 
 @Composable
-private fun VideoArea(player: ExoPlayer, modifier: Modifier, rounded: Boolean) {
+private fun VideoArea(
+    player: ExoPlayer,
+    modifier: Modifier,
+    rounded: Boolean,
+    onControllerVisibility: ((Boolean) -> Unit)? = null
+) {
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
@@ -420,6 +438,11 @@ private fun VideoArea(player: ExoPlayer, modifier: Modifier, rounded: Boolean) {
                 useController = true
                 keepScreenOn = true
                 controllerShowTimeoutMs = 2500
+                onControllerVisibility?.let { cb ->
+                    setControllerVisibilityListener { v ->
+                        cb(v == android.view.View.VISIBLE)
+                    }
+                }
             }
         },
         modifier = modifier

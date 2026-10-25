@@ -200,6 +200,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("theme_color", 0)
         set(value) = sp.edit().putInt("theme_color", value).apply()
 
+    /** 目标刷新率（Hz）；0 表示跟随系统 */
+    var refreshRate: Int
+        get() = sp.getInt("refresh_rate", 0)
+        set(value) = sp.edit().putInt("refresh_rate", value).apply()
+
     // ---------- 首页缓存（24 小时）----------
 
     private fun cacheKey(k: String) = "cache_$k"
