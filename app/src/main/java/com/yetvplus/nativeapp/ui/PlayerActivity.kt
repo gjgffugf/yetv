@@ -63,7 +63,6 @@ import com.yetvplus.nativeapp.ui.theme.SurfaceLight
 import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import com.yetvplus.nativeapp.ui.theme.YETVTheme
-import kotlinx.coroutines.delay
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.foundation.layout.Spacer
 import com.yetvplus.nativeapp.ui.screens.EpisodeSection
@@ -75,11 +74,12 @@ import androidx.compose.animation.core.tween
 import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
 import com.yetvplus.nativeapp.ui.PlayerArgs
 import com.yetvplus.nativeapp.data.VideoItem
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableFloatStateOf
-import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitFirstDown
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
@@ -471,17 +471,34 @@ private fun Modifier.longPressFastForward(
     onStart: () -> Unit,
     onEnd: () -> Unit
 ): Modifier = this.pointerInput(Unit) {
-    detectTapGestures(
-        onPress = {
-            val job = launch {
-                delay(FAST_FORWARD_HOLD_MS)
-                onStart()
+    // 用 awaitPointerEventScope 自己判定长按。
+    // 不能用 detectTapGestures + launch：onPress 的接收者是 PressGestureScope，
+    // 它不是 CoroutineScope，调 launch 会报 receiver type mismatch。
+    awaitPointerEventScope {
+        while (true) {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val slop = viewConfiguration.touchSlop
+            // 等够时间仍未抬起、且手指没移出容差，才算长按
+            val held = withTimeoutOrNull(FAST_FORWARD_HOLD_MS) {
+                while (true) {
+                    val e = awaitPointerEvent()
+                    val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!c.pressed) break
+                    if ((c.position - down.position).getDistance() > slop) break
+                }
+            } == null
+            if (!held) continue
+
+            onStart()
+            // 等松手，然后恢复原速
+            while (true) {
+                val e = awaitPointerEvent()
+                val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                if (!c.pressed) break
             }
-            tryAwaitRelease()
-            job.cancel()
             onEnd()
         }
-    )
+    }
 }
 
 /** 长按多久开始快进 */
