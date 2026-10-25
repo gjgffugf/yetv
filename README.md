@@ -104,6 +104,18 @@
 minSdk 24（Android 7.0+），targetSdk 34。包名 `com.yetvplus.nativeapp`
 （不能用 `com.yetvplus.native`——`native` 是 Java 关键字，AAPT 会直接拒绝）。
 
+### 版本配对（改一个必须改另一个）
+
+| 组件 | 版本 |
+|---|---|
+| Android Gradle Plugin | 8.1.4 |
+| Kotlin | **1.9.10** |
+| Compose Compiler | **1.5.3** |
+| Compose BOM | 2023.10.01 |
+
+Compose Compiler 与 Kotlin 是强绑定关系，1.5.3 只认 1.9.10（1.9.22 需要 1.5.7+）。
+两处分别在 `build.gradle.kts`（Kotlin）与 `app/build.gradle.kts`（kotlinCompilerExtensionVersion）。
+
 ---
 
 ## 五、已知限制（会在抓包后逐步补）

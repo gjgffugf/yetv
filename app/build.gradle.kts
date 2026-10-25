@@ -62,6 +62,7 @@ android {
     }
 
     composeOptions {
+        // 与根 build.gradle.kts 的 Kotlin 1.9.10 严格配对，不要单独改
         kotlinCompilerExtensionVersion = "1.5.3"
     }
 
