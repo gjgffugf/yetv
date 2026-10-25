@@ -9,6 +9,9 @@ class Prefs(context: Context) {
 
     companion object {
         const val DEFAULT_BASE = "https://mtv.ffurry.cc.cd"
+        /** 首页缓存有效期：24 小时 */
+        const val CACHE_MS = 24 * 60 * 60 * 1000L
+        private val GSON = com.google.gson.Gson()
     }
 
     var baseUrl: String
@@ -198,11 +201,6 @@ class Prefs(context: Context) {
         set(value) = sp.edit().putInt("theme_color", value).apply()
 
     // ---------- 首页缓存（24 小时）----------
-
-    companion object {
-        const val CACHE_MS = 24 * 60 * 60 * 1000L
-        private val GSON = com.google.gson.Gson()
-    }
 
     private fun cacheKey(k: String) = "cache_$k"
 

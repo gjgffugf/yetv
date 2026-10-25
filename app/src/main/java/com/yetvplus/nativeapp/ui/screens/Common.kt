@@ -58,6 +58,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Spacer
 import com.yetvplus.nativeapp.data.Episode
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
+import com.yetvplus.nativeapp.ui.theme.SurfaceLight
 
 
 

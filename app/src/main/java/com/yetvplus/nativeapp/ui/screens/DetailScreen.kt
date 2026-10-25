@@ -53,6 +53,7 @@ import com.yetvplus.nativeapp.ui.theme.SurfaceLight
 import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
+import androidx.compose.foundation.layout.size
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
