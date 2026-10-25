@@ -75,11 +75,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 
 object Route {
     const val LOGIN = "login"
@@ -312,33 +312,36 @@ private fun GlassDock(
                 modifier = Modifier
                     .matchParentSize()
                     .pointerInput(tabs, n) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            val slop = viewConfiguration.touchSlop
-                            // 等 350ms：期间若抬起或移动超出容差就不算长按
-                            val isLongPress = withTimeoutOrNull(LONG_PRESS_MS) {
-                                while (true) {
-                                    val e = awaitPointerEvent()
-                                    val c = e.changes.firstOrNull { it.id == down.id } ?: break
-                                    if (!c.pressed) break
-                                    if ((c.position - down.position).getDistance() > slop) break
-                                }
-                            } == null
-                            if (!isLongPress) return@awaitEachGesture
-                            dragging = true
-                            try {
-                                while (true) {
-                                    val e = awaitPointerEvent()
-                                    val c = e.changes.firstOrNull { it.id == down.id } ?: break
-                                    if (!c.pressed) break
-                                    val x = c.position.x
-                                    if (x in 0f..widthPx) {
-                                        val t = tabs[idxAt(x)]
-                                        if (t.route != routeState.value) onSelect(t.route)
+                        awaitPointerEventScope {
+                            while (true) {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val slop = viewConfiguration.touchSlop
+                                // 等 350ms：期间若抬起或移动超出容差就不算长按
+                                val isLongPress = withTimeoutOrNull(LONG_PRESS_MS) {
+                                    while (true) {
+                                        val e = awaitPointerEvent()
+                                        val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                                        if (!c.pressed) break
+                                        if ((c.position - down.position).getDistance() > slop) break
                                     }
+                                } == null
+                                if (!isLongPress) continue
+                                // 长按成立：滑块放大提示，之后拖动实时切页
+                                dragging = true
+                                try {
+                                    while (true) {
+                                        val e = awaitPointerEvent()
+                                        val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                                        if (!c.pressed) break
+                                        val x = c.position.x
+                                        if (x in 0f..widthPx) {
+                                            val t = tabs[idxAt(x)]
+                                            if (t.route != routeState.value) onSelect(t.route)
+                                        }
+                                    }
+                                } finally {
+                                    dragging = false
                                 }
-                            } finally {
-                                dragging = false
                             }
                         }
                     }

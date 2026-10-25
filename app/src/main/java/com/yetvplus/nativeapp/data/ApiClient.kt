@@ -23,6 +23,16 @@ import javax.net.ssl.X509TrustManager
  * 极简 HTTP 客户端：只依赖 OkHttp + Gson。
  * Cookie 自动持久化到 Prefs，登录态可跨重启保持。
  */
+/** 诊断用：一次请求的完整结果 */
+data class RawResponse(
+    val url: String = "",
+    val code: Int = 0,
+    val ok: Boolean = false,
+    val ms: Long = 0,
+    val body: String = "",
+    val error: Boolean = false
+)
+
 class ApiClient(private val context: Context) {
 
     private val gson = Gson()
@@ -140,6 +150,55 @@ class ApiClient(private val context: Context) {
             } catch (e: Exception) {
                 null
             }
+        }
+    }
+
+    /**
+     * 取回原始响应文本，不做任何解析。
+     * 用于诊断：非 2xx / 非 JSON 也要看得到，才能判断到底是接口路径错还是字段错。
+     */
+    fun getRaw(path: String, params: Map<String, String> = emptyMap()): RawResponse {
+        val base = url(path)
+        val full = if (params.isEmpty()) {
+            base
+        } else {
+            buildString {
+                append(base)
+                append(if (base.contains("?")) "&" else "?")
+                params.entries.joinTo(this, "&") { (k, v) ->
+                    "${URLEncoder.encode(k, "UTF-8")}=${URLEncoder.encode(v, "UTF-8")}"
+                }
+            }
+        }
+        val started = System.currentTimeMillis()
+        return try {
+            val req = Request.Builder()
+                .url(full)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Accept-Language", "zh-CN,zh;q=0.9")
+                .header("Referer", baseUrl + "/")
+                .get()
+                .build()
+            client().newCall(req).execute().use { resp ->
+                val body = runCatching { resp.body?.string() ?: "" }.getOrDefault("")
+                RawResponse(
+                    url = full,
+                    code = resp.code,
+                    ok = resp.isSuccessful,
+                    ms = System.currentTimeMillis() - started,
+                    body = body
+                )
+            }
+        } catch (e: Exception) {
+            RawResponse(
+                url = full,
+                code = -1,
+                ok = false,
+                ms = System.currentTimeMillis() - started,
+                body = e.message ?: e.toString(),
+                error = true
+            )
         }
     }
 

@@ -111,8 +111,23 @@ class Repo(private val api: ApiClient, private val prefs: Prefs) {
         Mapping.parseCategories(api.get("/api/config/custom_category"))
     }
 
+    /**
+     * 视频源列表。
+     * 原实现只打 /api/config/sources，该接口在多数部署里并不存在（404 被静默吞成空列表），
+     * 导致"已配置却显示 0 个源"。改为依次尝试多个路径，取第一个非空结果。
+     */
     suspend fun sources(): List<SourceItem> = withContext(Dispatchers.IO) {
-        Mapping.parseSources(api.get("/api/config/sources"))
+        val paths = listOf(
+            "/api/admin/config",   // 管理面板配置，含 Config.SourceConfig（最可能）
+            "/api/config/sources", // 旧路径，保留兜底
+            "/api/sources"
+        )
+        for (p in paths) {
+            val el = runCatching { api.get(p) }.getOrNull() ?: continue
+            val list = Mapping.parseSources(el)
+            if (list.isNotEmpty()) return@withContext list
+        }
+        emptyList()
     }
 
     // ---------- 用户 ----------
@@ -166,6 +181,18 @@ class Repo(private val api: ApiClient, private val prefs: Prefs) {
 
     suspend fun serverConfig(): SiteConfig = withContext(Dispatchers.IO) {
         Mapping.parseSiteConfig(api.get("/api/server-config"))
+    }
+
+    /**
+     * 管理面板用的站点配置。
+     * 公开接口 /api/server-config 通常不含 Announcement，所以优先读
+     * /api/admin/config（Config.SiteConfig.Announcement），读不到再回落旧接口。
+     */
+    suspend fun adminSiteConfig(): SiteConfig = withContext(Dispatchers.IO) {
+        val fromAdmin = runCatching { api.get("/api/admin/config") }.getOrNull()
+        val parsed = Mapping.parseSiteConfig(fromAdmin)
+        if (parsed.siteName.isNotEmpty() || parsed.announcement.isNotEmpty()) return@withContext parsed
+        runCatching { serverConfig() }.getOrDefault(SiteConfig())
     }
 
     suspend fun adminConfig(): com.google.gson.JsonElement? = withContext(Dispatchers.IO) {

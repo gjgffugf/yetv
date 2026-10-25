@@ -163,6 +163,28 @@
 `app/yetvplus.jks`（有效期至 2126 年），所有版本签名一致。
 `.gitignore` 中已显式 `!app/yetvplus.jks` 确保其被提交。
 
+
+## 二·十一、管理面板取数修复 + 接口诊断
+
+### 问题
+- **视频源显示 0 个（实际已配置）**：原实现只请求 `/api/config/sources`，
+  该接口在多数部署里不存在（404）。而 `ApiClient.get` 对非 2xx 静默返回 null，
+  解析层拿到 null 就返回空列表 —— 于是"已配置"却显示空，且没有任何报错提示。
+- **站点公告为空**：公告从公开的 `/api/server-config` 读，该接口通常不含 `Announcement`
+  （它只暴露站点名/存储类型）。标题能显示正是因为 `SiteName` 在其中。
+
+### 修复
+| 改动 | 说明 |
+|---|---|
+| `ApiClient.getRaw` | 新增取原始响应文本的方法，保留状态码/耗时/异常，不再静默吞掉错误 |
+| `Repo.sources()` | 改为依次尝试 `/api/admin/config` → `/api/config/sources` → `/api/sources`，取第一个非空 |
+| `Repo.adminSiteConfig()` | 管理面板的站点配置优先读 `/api/admin/config`（`Config.SiteConfig.Announcement`），读不到再回落旧接口 |
+| `Mapping.parseSources` | 兼容 `Config.SourceConfig` 深层包裹；支持数组和 api_site 映射两种形态 |
+| 接口诊断页 | 管理面板新增「诊断」标签，逐个请求关键接口并显示状态码/耗时/原始响应，可一键复制 |
+
+### 用法
+管理面板 → 诊断 → 看哪个接口是 404 / 401 / 200 以及具体返回内容 → 点「复制」发给开发者校准字段。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

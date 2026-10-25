@@ -52,8 +52,14 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import com.yetvplus.nativeapp.data.RawResponse
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 
-private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级")
+private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级", "诊断")
 
 @Composable
 fun AdminScreen(app: YETVApp) {
@@ -108,6 +114,7 @@ fun AdminScreen(app: YETVApp) {
                 2 -> CategoryTab(app)
                 3 -> UserTab(app)
                 4 -> AdvancedTab(app)
+                5 -> DiagnoseTab(app)
             }
         }
     }
@@ -127,7 +134,7 @@ private fun SiteTab(app: YETVApp) {
 
     LaunchedEffect(Unit) {
         loading = true
-        val cfg = runCatching { app.repo.serverConfig() }.getOrNull()
+        val cfg = runCatching { app.repo.adminSiteConfig() }.getOrNull()
         loading = false
         cfg?.let {
             name = it.siteName
@@ -452,5 +459,120 @@ private fun SwitchRow2(text: String, checked: Boolean, onChange: (Boolean) -> Un
                 checkedTrackColor = LocalBrand.current.copy(alpha = 0.5f)
             )
         )
+    }
+}
+
+// ---------------- 接口诊断 ----------------
+
+/**
+ * 接口诊断：逐个请求关键接口，把状态码、耗时、原始响应文本直接显示出来。
+ *
+ * 用途：抓不到包时，用它一次性看清"到底哪个接口通、返回什么结构"，
+ * 比猜字段可靠。响应可点击复制 / 分享出去。
+ */
+@Composable
+private fun DiagnoseTab(app: YETVApp) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var running by remember { mutableStateOf(false) }
+    val results = remember { mutableStateListOf<RawResponse>() }
+
+    val paths = listOf(
+        "/api/admin/config",
+        "/api/server-config",
+        "/api/config/sources",
+        "/api/config/custom_category"
+    )
+
+    fun run() {
+        scope.launch {
+            running = true
+            results.clear()
+            for (p in paths) {
+                val r = withContext(Dispatchers.IO) { app.api.getRaw(p) }
+                results.add(r)
+            }
+            running = false
+        }
+    }
+
+    LaunchedEffect(Unit) { run() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("接口诊断", color = TextPrimary, fontSize = 17.sp)
+        Text(
+            "下面列出各接口的真实状态码与原始响应。点「复制」可把内容发给开发者校准字段。",
+            color = TextSecondary, fontSize = 12.sp
+        )
+        Button(
+            onClick = { run() },
+            enabled = !running,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (running) "请求中…" else "重新诊断") }
+
+        results.forEach { r ->
+            val okColor = if (r.ok) Color(0xFF4CAF50) else Color(0xFFE5484D)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Surface),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .background(okColor, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                if (r.error) "ERR" else r.code.toString(),
+                                color = Color.White, fontSize = 11.sp
+                            )
+                        }
+                        Text(
+                            " ${r.ms}ms",
+                            color = TextSecondary, fontSize = 11.sp,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            "复制",
+                            color = LocalBrand.current, fontSize = 12.sp,
+                            modifier = Modifier.clickable {
+                                val cm = context.getSystemService(
+                                    android.content.Context.CLIPBOARD_SERVICE
+                                ) as? android.content.ClipboardManager
+                                cm?.setPrimaryClip(
+                                    android.content.ClipData.newPlainText(
+                                        "resp", "URL: ${r.url}\nCODE: ${r.code}\n${r.body}"
+                                    )
+                                )
+                                android.widget.Toast.makeText(
+                                    context, "已复制", android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
+                    Text(
+                        r.url.substringAfter("/api"),
+                        color = TextPrimary, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                    // 原始响应：截断显示，避免超长
+                    val shown = if (r.body.length > 600) r.body.take(600) + "…（已截断）" else r.body
+                    Text(
+                        shown.ifEmpty { "（空响应体）" },
+                        color = TextSecondary, fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
+        }
     }
 }

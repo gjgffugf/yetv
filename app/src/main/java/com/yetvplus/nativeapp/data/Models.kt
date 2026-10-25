@@ -271,14 +271,31 @@ object Mapping {
         return null
     }
 
+    /** 判断某个对象是否像 api_site 映射：值都是对象，且大多含 api/name */
+    private fun looksLikeSourceMap(o: JsonObject): Boolean {
+        if (o.entrySet().isEmpty()) return false
+        var hit = 0
+        for ((_, v) in o.entrySet()) {
+            if (!v.isJsonObject) continue
+            val vo = v.asJsonObject
+            if (vo.has("api") || vo.has("name") || vo.has("detail")) hit++
+        }
+        return hit > 0
+    }
+
     fun parseSources(root: JsonElement?): List<SourceItem> {
         if (root == null) return emptyList()
         // 全树找 sources / SourceConfig / api_site，适配不同部署的包裹层级
+        // （真实结构常见：Config.SourceConfig = { "dyttzy": {...}, "tyyszyg": {...} }）
         val node = findNode(root, setOf("sources", "Sources", "SourceConfig", "api_site", "apiSite"))
             ?: root
         val out = ArrayList<SourceItem>()
-        if (node != null && node.isJsonArray) {
-            for (e in node.asJsonArray) {
+        // 若全树没命中，但根节点本身像 api_site 映射，也尝试按映射解析
+        val start = if (node === root && root.isJsonObject && looksLikeSourceMap(root.asJsonObject)) {
+            root.asJsonObject
+        } else node
+        if (start != null && start.isJsonArray) {
+            for (e in start.asJsonArray) {
                 if (!e.isJsonObject) continue
                 val so = e.asJsonObject
                 out.add(
@@ -291,9 +308,9 @@ object Mapping {
                     )
                 )
             }
-        } else if (node != null && node.isJsonObject) {
+        } else if (start != null && start.isJsonObject) {
             // api_site 形式：{ "dyttzy": {api,name,detail}, ... }
-            for ((k, v) in node.asJsonObject.entrySet()) {
+            for ((k, v) in start.asJsonObject.entrySet()) {
                 if (!v.isJsonObject) continue
                 out.add(
                     SourceItem(
