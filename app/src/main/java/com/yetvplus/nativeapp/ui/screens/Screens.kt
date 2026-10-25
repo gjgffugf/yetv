@@ -613,6 +613,10 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
 
         // ---- 显示 ----
         SettingsCard("显示") {
+            // 在可组合作用域里先取好 Context/Activity，
+            // 不能在 clickable 的 lambda 里调 LocalContext.current（那不是 @Composable 上下文）
+            val activity = LocalContext.current as? android.app.Activity
+            val supported = activity?.let { RefreshRate.supported(it) } ?: RefreshRate.OPTIONS
             Text("刷新率", color = TextPrimary, fontSize = 14.sp)
             Row(
                 modifier = Modifier
@@ -620,7 +624,6 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                     .padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val supported = RefreshRate.supported(LocalContext.current as android.app.Activity)
                 (listOf(0) + RefreshRate.OPTIONS).forEach { hz ->
                     val on = refreshHz == hz
                     Box(
@@ -633,8 +636,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                             .clickable {
                                 refreshHz = hz
                                 prefs.refreshRate = hz
-                                val act = LocalContext.current as? android.app.Activity
-                                if (act != null && hz > 0) RefreshRate.apply(act, hz)
+                                if (activity != null && hz > 0) RefreshRate.apply(activity, hz)
                                 tip = if (hz == 0) "已设为跟随系统"
                                 else "已设为 ${hz}Hz${if (hz !in supported) "（设备可能不支持）" else ""}"
                             }

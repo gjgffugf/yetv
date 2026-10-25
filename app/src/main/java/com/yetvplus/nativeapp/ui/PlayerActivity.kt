@@ -439,9 +439,12 @@ private fun VideoArea(
                 keepScreenOn = true
                 controllerShowTimeoutMs = 2500
                 onControllerVisibility?.let { cb ->
-                    setControllerVisibilityListener { v ->
-                        cb(v == android.view.View.VISIBLE)
-                    }
+                    // PlayerView 有两个同名重载，必须显式指定类型，否则重载解析歧义
+                    setControllerVisibilityListener(
+                        PlayerView.ControllerVisibilityListener { v: Int ->
+                            cb(v == android.view.View.VISIBLE)
+                        }
+                    )
                 }
             }
         },
