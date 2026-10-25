@@ -1,4 +1,4 @@
-package com.yetvplus.native.ui.screens
+package com.yetvplus.nativeapp.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.background
@@ -42,16 +42,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.yetvplus.native.YETVApp
-import com.yetvplus.native.data.DetailInfo
-import com.yetvplus.native.data.VideoItem
-import com.yetvplus.native.ui.NavArgs
-import com.yetvplus.native.ui.PlayerActivity
-import com.yetvplus.native.ui.theme.Brand
-import com.yetvplus.native.ui.theme.Surface
-import com.yetvplus.native.ui.theme.SurfaceLight
-import com.yetvplus.native.ui.theme.TextPrimary
-import com.yetvplus.native.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.YETVApp
+import com.yetvplus.nativeapp.data.DetailInfo
+import com.yetvplus.nativeapp.data.VideoItem
+import com.yetvplus.nativeapp.ui.NavArgs
+import com.yetvplus.nativeapp.ui.PlayerActivity
+import com.yetvplus.nativeapp.ui.theme.Brand
+import com.yetvplus.nativeapp.ui.theme.Surface
+import com.yetvplus.nativeapp.ui.theme.SurfaceLight
+import com.yetvplus.nativeapp.ui.theme.TextPrimary
+import com.yetvplus.nativeapp.ui.theme.TextSecondary
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
@@ -198,7 +198,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
 }
 
 @Composable
-private fun EpisodeGrid(list: kotlin.collections.List<com.yetvplus.native.data.Episode>, onClick: (Int) -> Unit) {
+private fun EpisodeGrid(list: kotlin.collections.List<com.yetvplus.nativeapp.data.Episode>, onClick: (Int) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
         modifier = Modifier

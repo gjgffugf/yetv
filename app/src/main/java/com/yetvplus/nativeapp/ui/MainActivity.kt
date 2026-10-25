@@ -1,4 +1,4 @@
-package com.yetvplus.native.ui
+package com.yetvplus.nativeapp.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -30,20 +30,20 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.yetvplus.native.YETVApp
-import com.yetvplus.native.data.VideoItem
-import com.yetvplus.native.ui.admin.AdminScreen
-import com.yetvplus.native.ui.screens.AppBackground
-import com.yetvplus.native.ui.screens.DetailScreen
-import com.yetvplus.native.ui.screens.HomeScreen
-import com.yetvplus.native.ui.screens.LoginScreen
-import com.yetvplus.native.ui.screens.MineScreen
-import com.yetvplus.native.ui.screens.SearchScreen
-import com.yetvplus.native.ui.screens.SettingsScreen
-import com.yetvplus.native.ui.theme.Bg
-import com.yetvplus.native.ui.theme.Brand
-import com.yetvplus.native.ui.theme.TextSecondary
-import com.yetvplus.native.ui.theme.YETVTheme
+import com.yetvplus.nativeapp.YETVApp
+import com.yetvplus.nativeapp.data.VideoItem
+import com.yetvplus.nativeapp.ui.admin.AdminScreen
+import com.yetvplus.nativeapp.ui.screens.AppBackground
+import com.yetvplus.nativeapp.ui.screens.DetailScreen
+import com.yetvplus.nativeapp.ui.screens.HomeScreen
+import com.yetvplus.nativeapp.ui.screens.LoginScreen
+import com.yetvplus.nativeapp.ui.screens.MineScreen
+import com.yetvplus.nativeapp.ui.screens.SearchScreen
+import com.yetvplus.nativeapp.ui.screens.SettingsScreen
+import com.yetvplus.nativeapp.ui.theme.Bg
+import com.yetvplus.nativeapp.ui.theme.Brand
+import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.YETVTheme
 
 object Route {
     const val LOGIN = "login"

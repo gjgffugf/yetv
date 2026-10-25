@@ -1,4 +1,4 @@
-package com.yetvplus.native.ui.screens
+package com.yetvplus.nativeapp.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,12 +34,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
-import com.yetvplus.native.data.DoubanItem
-import com.yetvplus.native.data.VideoItem
-import com.yetvplus.native.ui.theme.Brand
-import com.yetvplus.native.ui.theme.Surface
-import com.yetvplus.native.ui.theme.TextPrimary
-import com.yetvplus.native.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.data.DoubanItem
+import com.yetvplus.nativeapp.data.VideoItem
+import com.yetvplus.nativeapp.ui.theme.Brand
+import com.yetvplus.nativeapp.ui.theme.Surface
+import com.yetvplus.nativeapp.ui.theme.TextPrimary
+import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap

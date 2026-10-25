@@ -4,14 +4,14 @@ plugins {
 }
 
 android {
-    namespace = "com.yetvplus.native"
+    namespace = "com.yetvplus.nativeapp"
     compileSdk = 34
 
     val customStoreFile = project.findProperty("MTV_STORE_FILE") as String?
     val useCustomSigning = !customStoreFile.isNullOrBlank()
 
     defaultConfig {
-        applicationId = "com.yetvplus.native"
+        applicationId = "com.yetvplus.nativeapp"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

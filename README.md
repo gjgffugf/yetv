@@ -101,7 +101,8 @@
 ./gradlew assembleRelease    # 正式版
 ```
 
-minSdk 24（Android 7.0+），targetSdk 34。
+minSdk 24（Android 7.0+），targetSdk 34。包名 `com.yetvplus.nativeapp`
+（不能用 `com.yetvplus.native`——`native` 是 Java 关键字，AAPT 会直接拒绝）。
 
 ---
 

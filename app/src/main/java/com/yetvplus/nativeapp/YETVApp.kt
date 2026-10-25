@@ -1,4 +1,4 @@
-package com.yetvplus.native
+package com.yetvplus.nativeapp
 
 import android.app.Application
 import coil.ImageLoader
@@ -6,9 +6,9 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import okhttp3.OkHttpClient
-import com.yetvplus.native.data.ApiClient
-import com.yetvplus.native.data.Prefs
-import com.yetvplus.native.data.Repo
+import com.yetvplus.nativeapp.data.ApiClient
+import com.yetvplus.nativeapp.data.Prefs
+import com.yetvplus.nativeapp.data.Repo
 
 class YETVApp : Application(), ImageLoaderFactory {
 

@@ -1,4 +1,4 @@
-package com.yetvplus.native.data
+package com.yetvplus.nativeapp.data
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject

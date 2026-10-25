@@ -1,4 +1,4 @@
-package com.yetvplus.native.ui.screens
+package com.yetvplus.nativeapp.ui.screens
 
 import android.content.Context
 import android.net.Uri
@@ -45,13 +45,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yetvplus.native.YETVApp
-import com.yetvplus.native.data.DoubanItem
-import com.yetvplus.native.data.VideoItem
-import com.yetvplus.native.ui.theme.Brand
-import com.yetvplus.native.ui.theme.Surface
-import com.yetvplus.native.ui.theme.TextPrimary
-import com.yetvplus.native.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.YETVApp
+import com.yetvplus.nativeapp.data.DoubanItem
+import com.yetvplus.nativeapp.data.VideoItem
+import com.yetvplus.nativeapp.ui.theme.Brand
+import com.yetvplus.nativeapp.ui.theme.Surface
+import com.yetvplus.nativeapp.ui.theme.TextPrimary
+import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream

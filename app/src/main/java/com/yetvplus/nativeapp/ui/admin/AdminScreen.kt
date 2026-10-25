@@ -1,4 +1,4 @@
-package com.yetvplus.native.ui.admin
+package com.yetvplus.nativeapp.ui.admin
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -34,15 +34,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
-import com.yetvplus.native.YETVApp
-import com.yetvplus.native.data.SourceItem
-import com.yetvplus.native.data.UserItem
-import com.yetvplus.native.ui.screens.ChipTabs
-import com.yetvplus.native.ui.screens.LoadingBox
-import com.yetvplus.native.ui.theme.Brand
-import com.yetvplus.native.ui.theme.Surface
-import com.yetvplus.native.ui.theme.TextPrimary
-import com.yetvplus.native.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.YETVApp
+import com.yetvplus.nativeapp.data.SourceItem
+import com.yetvplus.nativeapp.data.UserItem
+import com.yetvplus.nativeapp.ui.screens.ChipTabs
+import com.yetvplus.nativeapp.ui.screens.LoadingBox
+import com.yetvplus.nativeapp.ui.theme.Brand
+import com.yetvplus.nativeapp.ui.theme.Surface
+import com.yetvplus.nativeapp.ui.theme.TextPrimary
+import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级")

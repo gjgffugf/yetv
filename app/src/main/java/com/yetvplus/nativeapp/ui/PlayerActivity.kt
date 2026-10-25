@@ -1,4 +1,4 @@
-package com.yetvplus.native.ui
+package com.yetvplus.nativeapp.ui
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -40,8 +40,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import com.yetvplus.native.YETVApp
-import com.yetvplus.native.ui.theme.YETVTheme
+import com.yetvplus.nativeapp.YETVApp
+import com.yetvplus.nativeapp.ui.theme.YETVTheme
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"

@@ -1,5 +1,5 @@
 -keepattributes *Annotation*
--keep class com.yetvplus.native.data.** { *; }
+-keep class com.yetvplus.nativeapp.data.** { *; }
 -keep class com.google.gson.** { *; }
 -dontwarn okhttp3.**
 -dontwarn okio.**

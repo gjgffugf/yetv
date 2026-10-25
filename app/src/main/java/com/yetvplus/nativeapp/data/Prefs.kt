@@ -1,4 +1,4 @@
-package com.yetvplus.native.data
+package com.yetvplus.nativeapp.data
 
 import android.content.Context
 
