@@ -86,6 +86,7 @@ import androidx.compose.animation.core.tween
 import com.yetvplus.nativeapp.ui.RefreshRate
 import com.yetvplus.nativeapp.ui.themeArgbState
 import com.yetvplus.nativeapp.data.SearchGroup
+import androidx.compose.foundation.layout.PaddingValues
 
 // ---------------- 首页 ----------------
 
@@ -217,7 +218,7 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
 // ---------------- 搜索 ----------------
 
 @Composable
-fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
+fun SearchScreen(app: YETVApp, onOpen: (SearchGroup) -> Unit) {
     val prefs = app.prefs
     // 关键词与结果放在进程级单例里，详情页返回后不丢
     var keyword by remember { mutableStateOf(UiState.keyword) }

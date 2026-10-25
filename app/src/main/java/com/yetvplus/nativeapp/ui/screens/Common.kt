@@ -118,7 +118,6 @@ fun EmptyBox(text: String) {
     }
 }
 
-@Composable
 /** 海报 + 标题的可复用卡片；badge 显示在右上角 */
 @Composable
 fun PosterCard(item: VideoItem, badge: String = "") {
@@ -301,7 +300,7 @@ fun DoubanGrid(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(items, key = { it.key + it.title }) { item ->
+        items(items, key = { it.id + it.title }) { item ->
             DoubanCard(item) { onClick(item) }
         }
         if (loadingMore) {
