@@ -278,7 +278,6 @@ fun MineScreen(app: YETVApp, onSettings: () -> Unit, onLogout: () -> Unit) {
 // ---------------- 设置 ----------------
 
 @Composable
-@Composable
 fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
     val prefs = app.prefs
     var bgOn by remember { mutableStateOf(prefs.bgEnabled) }
