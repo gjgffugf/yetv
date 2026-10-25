@@ -75,8 +75,17 @@ data class SourceItem(
     val name: String = "",
     val api: String = "",
     val detail: String = "",
-    val enabled: Boolean = true
-)
+    val enabled: Boolean = true,
+    /**
+     * 来源：config = 来自 config.json（**服务端禁止删除/修改**，只能启用禁用）；
+     *      custom = 管理面板添加的（可删除、可编辑）。
+     * 抓包实测：13 个源里 12 个是 config，只有 1 个（1080zyk）是 custom。
+     */
+    val from: String = "custom"
+) {
+    /** 是否允许删除 / 编辑 */
+    val isCustom: Boolean get() = !from.equals("config", ignoreCase = true)
+}
 
 data class UserItem(
     val username: String = "",
@@ -305,7 +314,8 @@ object Mapping {
                         api = pick(so, "api", "url"),
                         detail = pick(so, "detail"),
                         // 抓包确认字段是 disabled（不是 enabled），要取反
-                        enabled = !asBool(so, "disabled", default = false)
+                        enabled = !asBool(so, "disabled", default = false),
+                        from = pick(so, "from").ifEmpty { "custom" }
                     )
                 )
             }

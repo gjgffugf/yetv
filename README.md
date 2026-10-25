@@ -267,6 +267,48 @@ GET /api/config/custom_category 404
 `Local*CompositionLocal`，随 `darkModeState` 实时切换；主色 `LocalBrand`
 由「个性化 → 软件默认色」独立控制，两者并存不冲突。
 
+
+## 二·十四、管理面板增删改修复（v1.0.2+）
+
+### 问题与根因
+
+| 现象 | 根因 |
+|---|---|
+| 添加用户提示「参数错误」 | POST 体用的是 `username / password`，服务端要求 **`action=add` + `targetUsername / targetPassword`** |
+| 无法删除用户 | 没有调 `action=deleteUser` |
+| 数据源删除/编辑提示「参数错误」 | 两个原因：① 没带 `action`（服务端的 add/delete/enable/disable 靠它分派）；② 对 `from:"config"` 的源执行了删除 |
+| 部分源删不掉 | **config.json 定义的源服务端禁止删除**（只能启用/禁用）。抓包显示 13 个源里 12 个是 `config`，只有 `1080zyk` 是 `custom` |
+
+### 修复
+
+- `Repo.sourceAction(action, payload)` —— 统一走 `/api/admin/source`，自动附加 `action`
+- `Repo.userAction(action, payload)` / `Repo.addUser()` —— 统一走 `/api/admin/user`，字段改为 `targetUsername / targetPassword`
+- `SourceItem` 增加 `from` 字段与 `isCustom` 判定
+- 视频源页按来源显示不同按钮：
+  - `custom` → 编辑 / 删除
+  - `config` → 仅 启用 / 禁用（不再显示会报错的删除按钮）
+- 用户页补齐：删除（带确认弹窗）、封禁 / 解封、设为管理 / 取消管理、改密码
+- owner（站长账号）不可删除、不可降权，UI 上直接隐藏这些按钮
+
+### 官方 action 一览
+
+`/api/admin/source`：`add` / `delete` / `enable` / `disable` / `sort`
+`/api/admin/user`：`add` / `deleteUser` / `ban` / `unban` / `setAdmin` / `cancelAdmin` / `changePassword` / `setAllowRegister`
+
+> 注：`delete` 与 `enable/disable` 只对 `from:"custom"` 的源生效（服务端限制）。
+
+
+## 二·十五、播放器重写（控制条自绘 + 源切换 + 播放失败修复）
+
+| 问题 | 根因 | 修法 |
+|---|---|---|
+| 详情页切了源，进播放器还是第一个源 | 详情页没把选中的源下标传给播放器，播放器一律从 0 号源起播 | 增加 `variantIndex` intent 字段；播放器用它初始化并取对应分集 |
+| 播放器里切源后点集数没反应、金色边框不动 | 播放加载的 key 是 `index`；切源后 index 没变（都是第 1 集），`DisposableEffect` 不重跑，播放器继续放旧地址 | 改成以**实际播放地址** `playUrl` 为 key（外加 `playToken` 兜底）。单纯切源不改 `playUrl`（不打断播放、边框消失需重选）；在新源里点某一集才真正换源 |
+| 全屏按钮位置错、显隐和进度条不同步 | 按钮是运行时塞进 ExoPlayer 原生控制条的 `TextView`，容器 LayoutParams 不匹配导致位置飘 | 弃用原生控制条（`useController = false`），**控制层完全用 Compose 自绘**：进度条（轨道+缓冲+已播+可拖圆点）、播放暂停、时间、**正方形图标全屏按钮**都在同一个 `AnimatedVisibility` 里，淡入淡出必然同步 |
+| 所有源都播放失败，网页端正常 | 只给 ExoPlayer 挂了 `HlsMediaSource.Factory`，非 m3u8 地址（mp4 / 无扩展名直链）全部解析失败 | 改用 `DefaultMediaSourceFactory`（自动识别 HLS / DASH / 渐进式），并补上连接与读取超时 |
+
+其他：控件 3.5 秒无操作自动收起，单击画面切换显隐，长按 3× 快进保留。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

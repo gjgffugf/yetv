@@ -258,6 +258,8 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                             putExtra("videoKey", base.key)
                             putExtra("total", episodes.size)
                             putExtra("poster", item.poster.ifEmpty { base.poster })
+                            // 详情页选的是哪个源，播放器就从哪个源开始播
+                            putExtra("variantIndex", variantIndex)
                             PlayerArgs.variants = variants.toList()
                         }
                         context.startActivity(i)

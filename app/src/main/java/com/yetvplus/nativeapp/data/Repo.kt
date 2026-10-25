@@ -212,19 +212,65 @@ class Repo(private val api: ApiClient, private val prefs: Prefs) {
         if (api.isOk(res)) "" else api.errorOf(res)
     }
 
-    suspend fun saveSource(payload: JsonObject): String = withContext(Dispatchers.IO) {
-        val res = api.post("/api/admin/source", payload)
-        if (api.isOk(res)) "" else api.errorOf(res)
-    }
+    /**
+     * 视频源操作。
+     *
+     * 抓包发现的关键点：这个接口**必须带 action**，否则服务端直接报「参数错误」。
+     * 官方支持：add / delete / enable / disable / sort
+     * —— 之前只是把整个源对象 POST 过去，没有 action，所以新增和删除都失败。
+     */
+    suspend fun sourceAction(action: String, payload: JsonObject): String =
+        withContext(Dispatchers.IO) {
+            val body = payload.deepCopy().apply { addProperty("action", action) }
+            val res = api.post("/api/admin/source", body)
+            if (api.isOk(res)) "" else api.errorOf(res)
+        }
+
+    /** 保留旧签名，内部转成 add */
+    suspend fun saveSource(payload: JsonObject): String = sourceAction("add", payload)
 
     suspend fun saveCategory(payload: JsonObject): String = withContext(Dispatchers.IO) {
         val res = api.post("/api/admin/category", payload)
         if (api.isOk(res)) "" else api.errorOf(res)
     }
 
-    suspend fun saveUser(payload: JsonObject): String = withContext(Dispatchers.IO) {
-        val res = api.post("/api/admin/user", payload)
-        if (api.isOk(res)) "" else api.errorOf(res)
+    /**
+     * 用户操作。
+     *
+     * 关键点有两个：
+     * 1. 必须带 action：add / deleteUser / ban / unban / changePassword /
+     *    setAdmin / cancelAdmin / setAllowRegister
+     * 2. 用户名/密码字段是 **targetUsername / targetPassword**（不是 username / password）
+     *    —— 之前用错字段名，服务端校验不过就报「参数错误」。
+     */
+    suspend fun userAction(action: String, payload: JsonObject): String =
+        withContext(Dispatchers.IO) {
+            val body = payload.deepCopy().apply { addProperty("action", action) }
+            val res = api.post("/api/admin/user", body)
+            if (api.isOk(res)) "" else api.errorOf(res)
+        }
+
+    /** 添加用户：字段名必须是 targetUsername / targetPassword，且带 action=add */
+    suspend fun addUser(username: String, password: String, role: String): String =
+        withContext(Dispatchers.IO) {
+            val body = JsonObject().apply {
+                addProperty("targetUsername", username)
+                addProperty("targetPassword", password)
+                addProperty("role", role)
+            }
+            val res = api.post("/api/admin/user", body.apply { addProperty("action", "add") })
+            if (api.isOk(res)) "" else api.errorOf(res)
+        }
+
+    /** 保留旧签名，内部转成 add（并把字段换成 targetXxx） */
+    suspend fun saveUser(payload: JsonObject): String {
+        val body = JsonObject().apply {
+            addProperty("targetUsername", payload.get("username")?.asString ?: "")
+            addProperty("targetPassword", payload.get("password")?.asString ?: "")
+            val r = payload.get("role")?.asString
+            if (!r.isNullOrBlank()) addProperty("role", r)
+        }
+        return userAction("add", body)
     }
 
     suspend fun saveConfigFile(text: String): String = withContext(Dispatchers.IO) {

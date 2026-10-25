@@ -194,7 +194,7 @@ private fun SourceTab(app: YETVApp) {
     var detail by remember { mutableStateOf("") }
     var tip by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
-    // 正在编辑的源下标；null 表示新增模式
+    // 正在编辑的源下标；-1 表示新增模式
     var editingIndex by remember { mutableIntStateOf(-1) }
     // 待删除的源下标；非负时弹确认框
     var pendingDelete by remember { mutableIntStateOf(-1) }
@@ -223,9 +223,8 @@ private fun SourceTab(app: YETVApp) {
                     scope.launch {
                         val payload = JsonObject().apply {
                             addProperty("key", t.key)
-                            addProperty("deleted", true)
                         }
-                        val err = runCatching { app.repo.saveSource(payload) }
+                        val err = runCatching { app.repo.sourceAction("delete", payload) }
                             .getOrElse { it.message ?: "删除失败" }
                         if (err.isEmpty()) {
                             list.remove(t)
@@ -269,32 +268,63 @@ private fun SourceTab(app: YETVApp) {
                             fontSize = 11.sp,
                             maxLines = 2
                         )
+                        Text(
+                            if (s.isCustom) "自定义源 · 可删除" else "配置源 · 仅可启停",
+                            color = LocalTextSecondary.current.copy(alpha = 0.75f),
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
-                    // 右侧：编辑 / 删除
-                    Text(
-                        "编辑",
-                        color = LocalBrand.current,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .clickable {
-                                editingIndex = idx
-                                key = s.key
-                                name = s.name
-                                api = s.api
-                                detail = s.detail
-                                tip = "正在编辑「${s.name.ifEmpty { s.key }}」，改完点保存"
-                            }
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                    )
-                    Text(
-                        "删除",
-                        color = Color(0xFFE5484D),
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .clickable { pendingDelete = idx }
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                    )
+                    // 来自 config.json 的源：服务端禁止删除/修改，只能启用或禁用。
+                    // 之前对它们也显示「编辑 / 删除」，点了必然报「参数错误」。
+                    if (s.isCustom) {
+                        Text(
+                            "编辑",
+                            color = LocalBrand.current,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .clickable {
+                                    editingIndex = idx
+                                    key = s.key
+                                    name = s.name
+                                    api = s.api
+                                    detail = s.detail
+                                    tip = "正在编辑「${s.name.ifEmpty { s.key }}」，改完点保存"
+                                }
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+                        Text(
+                            "删除",
+                            color = Color(0xFFE5484D),
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .clickable { pendingDelete = idx }
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+                    } else {
+                        Text(
+                            if (s.enabled) "禁用" else "启用",
+                            color = if (s.enabled) Color(0xFFFF8A3D) else LocalBrand.current,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .clickable {
+                                    val act = if (s.enabled) "disable" else "enable"
+                                    val payload = JsonObject().apply { addProperty("key", s.key) }
+                                    scope.launch {
+                                        val err = runCatching {
+                                            app.repo.sourceAction(act, payload)
+                                        }.getOrElse { it.message ?: "操作失败" }
+                                        if (err.isEmpty()) {
+                                            list[idx] = s.copy(enabled = !s.enabled)
+                                            tip = if (s.enabled) "已禁用" else "已启用"
+                                        } else tip = err
+                                    }
+                                }
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
         }
@@ -322,8 +352,9 @@ private fun SourceTab(app: YETVApp) {
                     addProperty("detail", detail.trim())
                 }
                 scope.launch {
-                    val err = runCatching { app.repo.saveSource(payload) }
-                        .getOrElse { it.message ?: "保存失败" }
+                    val err = runCatching {
+                        app.repo.sourceAction(if (editingIndex >= 0) "add" else "add", payload)
+                    }.getOrElse { it.message ?: "保存失败" }
                     if (err.isEmpty()) {
                         val item = SourceItem(key.trim(), name.trim(), api.trim(), detail.trim())
                         if (editingIndex >= 0 && editingIndex < list.size) {
@@ -412,6 +443,15 @@ private fun CategoryTab(app: YETVApp) {
 
 // ---------------- 用户 ----------------
 
+/**
+ * 用户管理。
+ *
+ * 之前「添加不了」的原因：POST 过去的是 username / password，
+ * 而服务端要求的是 action=add + targetUsername / targetPassword，
+ * 字段对不上就被判为「参数错误」。
+ *
+ * 这里全部改用 action 语义，并补齐 删除 / 封禁 / 解封 / 改密码 / 设管理员。
+ */
 @Composable
 private fun UserTab(app: YETVApp) {
     val users = remember { mutableStateListOf<UserItem>() }
@@ -420,6 +460,11 @@ private fun UserTab(app: YETVApp) {
     var role by remember { mutableStateOf("user") }
     var tip by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
+    // 删除确认：非空时弹窗
+    var pendingDelete by remember { mutableStateOf<String?>(null) }
+    // 改密码：记录目标用户名
+    var changePwdFor by remember { mutableStateOf("") }
+    var newPwd by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -432,6 +477,28 @@ private fun UserTab(app: YETVApp) {
 
     if (loading) { LoadingBox(); return }
 
+    // 删除确认框
+    if (pendingDelete != null) {
+        val who = pendingDelete ?: ""
+        ConfirmDialog(
+            title = "删除用户",
+            message = "确定要删除用户「$who」吗？该用户的登录状态会立即失效，此操作不可撤销。",
+            onConfirm = {
+                pendingDelete = null
+                scope.launch {
+                    val payload = JsonObject().apply { addProperty("targetUsername", who) }
+                    val err = runCatching { app.repo.userAction("deleteUser", payload) }
+                        .getOrElse { it.message ?: "删除失败" }
+                    if (err.isEmpty()) {
+                        users.removeAll { it.username == who }
+                        tip = "已删除用户「$who」"
+                    } else tip = err
+                }
+            },
+            onDismiss = { pendingDelete = null }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -440,20 +507,158 @@ private fun UserTab(app: YETVApp) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text("用户 ${users.size} 个", color = LocalTextPrimary.current, fontSize = 14.sp)
-        users.forEach { item ->
+
+        users.forEachIndexed { idx, item ->
+            // owner 是站长账号（环境变量 USERNAME），服务端禁止删除和降权
+            val isOwner = item.role.equals("owner", ignoreCase = true)
             Card(
                 colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    "${item.username}（${item.role}）${if (item.banned) " · 已封禁" else ""}",
-                    color = LocalTextPrimary.current, fontSize = 13.sp,
-                    modifier = Modifier.padding(12.dp)
-                )
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${item.username}（${item.role}）${if (item.banned) " · 已封禁" else ""}",
+                            color = LocalTextPrimary.current,
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (!isOwner) {
+                            Text(
+                                "删除",
+                                color = Color(0xFFE5484D),
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .clickable { pendingDelete = item.username }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    // 操作行：封禁 / 解封 / 改密码 / 管理员切换
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isOwner) {
+                            Text(
+                                "站长账号，不可删除或降权",
+                                color = LocalTextSecondary.current,
+                                fontSize = 11.sp
+                            )
+                        } else {
+                            Text(
+                                if (item.banned) "解封" else "封禁",
+                                color = LocalTextSecondary.current,
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable {
+                                    val act = if (item.banned) "unban" else "ban"
+                                    val payload = JsonObject().apply {
+                                        addProperty("targetUsername", item.username)
+                                    }
+                                    scope.launch {
+                                        val err = runCatching { app.repo.userAction(act, payload) }
+                                            .getOrElse { it.message ?: "操作失败" }
+                                        if (err.isEmpty()) {
+                                            users[idx] = item.copy(banned = !item.banned)
+                                            tip = if (item.banned) "已解封" else "已封禁"
+                                        } else tip = err
+                                    }
+                                }
+                            )
+                            Text(
+                                if (item.role.equals("admin", true)) "取消管理" else "设为管理",
+                                color = LocalTextSecondary.current,
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable {
+                                    val act =
+                                        if (item.role.equals("admin", true)) "cancelAdmin" else "setAdmin"
+                                    val payload = JsonObject().apply {
+                                        addProperty("targetUsername", item.username)
+                                    }
+                                    scope.launch {
+                                        val err = runCatching { app.repo.userAction(act, payload) }
+                                            .getOrElse { it.message ?: "操作失败" }
+                                        if (err.isEmpty()) {
+                                            val nr =
+                                                if (item.role.equals("admin", true)) "user" else "admin"
+                                            users[idx] = item.copy(role = nr)
+                                            tip = "已更新角色为 $nr"
+                                        } else tip = err
+                                    }
+                                }
+                            )
+                            Text(
+                                "改密码",
+                                color = LocalBrand.current,
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable {
+                                    changePwdFor = item.username
+                                    newPwd = ""
+                                    tip = ""
+                                }
+                            )
+                        }
+                    }
+
+                    // 改密码表单（就地展开）
+                    if (changePwdFor == item.username) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = newPwd,
+                                onValueChange = { newPwd = it },
+                                label = { Text("新密码", fontSize = 11.sp) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "确定",
+                                color = LocalBrand.current,
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable {
+                                    if (newPwd.length < 6) {
+                                        tip = "密码至少 6 位"
+                                        return@clickable
+                                    }
+                                    val payload = JsonObject().apply {
+                                        addProperty("targetUsername", item.username)
+                                        addProperty("targetPassword", newPwd)
+                                    }
+                                    scope.launch {
+                                        val err = runCatching {
+                                            app.repo.userAction("changePassword", payload)
+                                        }.getOrElse { it.message ?: "修改失败" }
+                                        if (err.isEmpty()) {
+                                            changePwdFor = ""
+                                            newPwd = ""
+                                            tip = "密码已更新"
+                                        } else tip = err
+                                    }
+                                }
+                            )
+                            Text(
+                                "取消",
+                                color = LocalTextSecondary.current,
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable { changePwdFor = "" }
+                            )
+                        }
+                    }
+                }
             }
         }
 
+        // ---- 添加用户 ----
+        Text("添加用户", color = LocalTextPrimary.current, fontSize = 14.sp,
+            modifier = Modifier.padding(top = 6.dp))
         OutlinedTextField(value = u, onValueChange = { u = it },
             label = { Text("新用户名", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = p, onValueChange = { p = it },
@@ -465,18 +670,15 @@ private fun UserTab(app: YETVApp) {
         Button(
             onClick = {
                 if (u.isBlank() || p.isBlank()) { tip = "请填写完整"; return@Button }
-                val payload = JsonObject().apply {
-                    addProperty("username", u.trim())
-                    addProperty("password", p)
-                    addProperty("role", role)
-                }
+                if (p.length < 6) { tip = "密码至少 6 位"; return@Button }
                 scope.launch {
-                    val err = runCatching { app.repo.saveUser(payload) }
-                        .getOrElse { it.message ?: "保存失败" }
+                    val err = runCatching {
+                        app.repo.addUser(u.trim(), p, role)
+                    }.getOrElse { it.message ?: "添加失败" }
                     if (err.isEmpty()) {
                         users.add(UserItem(u.trim(), role))
                         u = ""; p = ""
-                        tip = "已保存"
+                        tip = "已添加用户"
                     } else tip = err
                 }
             },
