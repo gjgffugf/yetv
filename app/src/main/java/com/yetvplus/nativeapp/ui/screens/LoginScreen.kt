@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
  * localstorage 模式 → 只输密码；数据库模式 → 用户名 + 密码。
  */
 @Composable
-fun LoginScreen(app: YETVApp, onSuccess: () -> Unit, onSkip: () -> Unit = onSuccess) {
+fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
     val prefs = app.prefs
 
     var username by remember { mutableStateOf(prefs.lastUsername) }
@@ -75,27 +75,12 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit, onSkip: () -> Unit = onSucc
     var error by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf(if (prefs.storageType.equals("localstorage", true)) 1 else 0) }
     var showRegister by remember { mutableStateOf(false) }
-    var checking by remember { mutableStateOf(true) }
     var siteName by remember { mutableStateOf(prefs.siteName) }
     var announcement by remember { mutableStateOf(prefs.announcement) }
     val scope = rememberCoroutineScope()
 
-    // 进入时拉一次 server-config：拿站点名、公告、存储类型、注册开关
-    LaunchedEffect(Unit) {
-        checking = true
-        val cfg = runCatching { app.repo.serverConfig() }.getOrNull()
-        checking = false
-        cfg?.let {
-            siteName = it.siteName.ifEmpty { "YETVPLUS" }
-            announcement = it.announcement
-            mode = if (it.singlePasswordMode) 1 else 0
-            prefs.siteName = siteName
-            prefs.announcement = it.announcement
-            prefs.storageType = it.storageType
-            prefs.registerEnabled = it.enableRegister
-        }
-        if (siteName.isEmpty()) siteName = "YETVPLUS"
-    }
+    // 注意：进入登录页不发起任何网络请求。
+    // 输入框与登录按钮立刻渲染出来，只有点「登录」才真正访问站点。
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 自定义背景图（设置页开启后生效）
@@ -118,12 +103,6 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit, onSkip: () -> Unit = onSucc
                 color = TextPrimary,
                 fontSize = 30.sp,
                 letterSpacing = 3.sp
-            )
-            Text(
-                "原生客户端",
-                color = TextSecondary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 6.dp)
             )
 
             Spacer(modifier = Modifier.height(34.dp))
@@ -165,17 +144,7 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit, onSkip: () -> Unit = onSucc
                         modifier = Modifier.padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        if (checking) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().height(60.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    color = Brand,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        } else {
+                        run {
                             // 单密码模式不显示用户名
                             if (mode == 0) {
                                 LoginField(
@@ -293,17 +262,6 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit, onSkip: () -> Unit = onSucc
                                         .clickable { showRegister = true; error = "" }
                                 )
                             }
-
-                            // 部分接口（如弹幕搜索）无需登录即可访问，允许跳过
-                            Text(
-                                "先随便看看 ›",
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                modifier = Modifier
-                                    .align(Alignment.CenterHorizontally)
-                                    .padding(top = 2.dp)
-                                    .clickable { onSkip() }
-                            )
                         }
                     }
                 }

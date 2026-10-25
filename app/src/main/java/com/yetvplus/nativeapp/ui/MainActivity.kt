@@ -145,7 +145,7 @@ private fun AppRoot() {
                                 popUpTo(Route.LOGIN) { inclusive = true }
                             }
                         }
-                        LoginScreen(app, onSuccess = enterHome, onSkip = enterHome)
+                        LoginScreen(app, onSuccess = enterHome)
                     }
                     composable(Route.HOME) {
                         HomeScreen(app) { v ->

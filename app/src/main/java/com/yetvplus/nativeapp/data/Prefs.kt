@@ -80,6 +80,41 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("register_enabled", false)
         set(value) = sp.edit().putBoolean("register_enabled", value).apply()
 
+    // ---------- 观看进度（纯本地，不上传）----------
+
+    private fun progKey(videoKey: String, index: Int) = "wp_${videoKey}_$index"
+    private fun finKey(videoKey: String, index: Int) = "wf_${videoKey}_$index"
+
+    /** 0f ~ 1f，未看过返回 0f */
+    fun getProgress(videoKey: String, index: Int): Float =
+        sp.getFloat(progKey(videoKey, index), 0f)
+
+    /** 记录进度；进度 >= 0.95 自动标记为已看完 */
+    fun setProgress(videoKey: String, index: Int, p: Float) {
+        val v = p.coerceIn(0f, 1f)
+        sp.edit().putFloat(progKey(videoKey, index), v).apply()
+        if (v >= 0.95f) setFinished(videoKey, index, true)
+    }
+
+    fun isFinished(videoKey: String, index: Int): Boolean =
+        sp.getBoolean(finKey(videoKey, index), false)
+
+    fun setFinished(videoKey: String, index: Int, v: Boolean) {
+        sp.edit().putBoolean(finKey(videoKey, index), v).apply()
+    }
+
+    /** 上次观看到第几集，用于「继续播放」 */
+    var lastEpisode: Int
+        get() = sp.getInt("last_episode", -1)
+        set(value) = sp.edit().putInt("last_episode", value).apply()
+
+    /** 清除本机全部观看进度 */
+    fun clearProgress() {
+        val e = sp.edit()
+        sp.all.keys.filter { it.startsWith("wp_") || it.startsWith("wf_") }.forEach { e.remove(it) }
+        e.remove("last_episode").apply()
+    }
+
     fun isLoggedIn(): Boolean = cookie.isNotEmpty()
 
     fun logout() {

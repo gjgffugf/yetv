@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,12 +21,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -51,6 +54,7 @@ import com.yetvplus.nativeapp.data.DoubanItem
 import com.yetvplus.nativeapp.data.VideoItem
 import com.yetvplus.nativeapp.ui.theme.Brand
 import com.yetvplus.nativeapp.ui.theme.Surface
+import com.yetvplus.nativeapp.ui.theme.SurfaceLight
 import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
@@ -228,10 +232,9 @@ fun MineScreen(app: YETVApp, onSettings: () -> Unit, onLogout: () -> Unit) {
                     color = TextPrimary,
                     fontSize = 15.sp
                 )
-                Text("站点：${prefs.baseUrl}", color = TextSecondary, fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 4.dp))
                 if (prefs.role.isNotEmpty()) {
-                    Text("角色：${prefs.role}", color = TextSecondary, fontSize = 12.sp)
+                    Text("角色：${prefs.role}", color = TextSecondary, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp))
                 }
                 Button(
                     onClick = {
@@ -275,9 +278,9 @@ fun MineScreen(app: YETVApp, onSettings: () -> Unit, onLogout: () -> Unit) {
 // ---------------- 设置 ----------------
 
 @Composable
+@Composable
 fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
     val prefs = app.prefs
-    var server by remember { mutableStateOf(prefs.baseUrl) }
     var bgOn by remember { mutableStateOf(prefs.bgEnabled) }
     var dim by remember { mutableFloatStateOf(prefs.bgDim) }
     var keepOn by remember { mutableStateOf(prefs.keepScreenOn) }
@@ -303,34 +306,16 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 14.dp)
+        ) {
             IconButton(onClick = onBack) {
                 Icon(Icons.Default.Close, contentDescription = "返回", tint = TextPrimary)
             }
             Text("应用设置", color = TextPrimary, fontSize = 20.sp)
-        }
-
-        SettingsCard("服务器") {
-            OutlinedTextField(
-                value = server, onValueChange = { server = it },
-                label = { Text("站点地址", fontSize = 13.sp) },
-                singleLine = true, modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = {
-                    if (!server.startsWith("http://") && !server.startsWith("https://")) {
-                        tip = "请输入 http:// 或 https:// 开头"
-                        return@Button
-                    }
-                    prefs.baseUrl = server
-                    app.api.baseUrl = prefs.baseUrl
-                    tip = "已保存：${prefs.baseUrl}"
-                },
-                modifier = Modifier.padding(top = 8.dp)
-            ) { Text("保存并应用") }
         }
 
         SettingsCard("背景图") {
@@ -338,65 +323,82 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                 bgOn = it
                 prefs.bgEnabled = it
             }
-            Button(onClick = { pickBg.launch("image/*") }, modifier = Modifier.fillMaxWidth()) {
-                Text("从相册选择")
-            }
-            Text(
-                "暗化程度：${(dim * 100).toInt()}%",
-                color = TextSecondary, fontSize = 12.sp
-            )
-            androidx.compose.material3.Slider(
-                value = dim,
-                onValueChange = { dim = it },
-                onValueChangeFinished = { prefs.bgDim = dim },
-                valueRange = 0f..0.85f
-            )
+            ActionRow("从相册选择") { pickBg.launch("image/*") }
             if (prefs.bgPath.isNotEmpty()) {
-                Button(onClick = {
+                ActionRow("清除背景图") {
                     prefs.bgPath = ""
                     prefs.bgEnabled = false
                     bgOn = false
                     tip = "已清除背景图"
-                }, modifier = Modifier.fillMaxWidth()) { Text("清除背景图") }
+                }
             }
+            SliderRow(
+                label = "暗化程度",
+                valueText = "${(dim * 100).toInt()}%",
+                value = dim,
+                range = 0f..0.85f,
+                onValue = { dim = it },
+                onDone = { prefs.bgDim = dim }
+            )
         }
 
         SettingsCard("播放") {
             SwitchRow("播放时保持屏幕常亮", keepOn) { keepOn = it; prefs.keepScreenOn = it }
             SwitchRow("进入播放自动横屏", land) { land = it; prefs.autoLandscape = it }
+            HintText("默认进入是小窗播放，横屏请点播放器右下角的全屏按钮。")
+        }
+
+        SettingsCard("观看记录") {
+            Text(
+                "集数观看进度保存在本机，不上传。",
+                color = TextSecondary, fontSize = 12.sp
+            )
+            ActionRow("清除全部观看记录") {
+                clearAllProgress(prefs)
+                tip = "观看记录已清除"
+            }
         }
 
         SettingsCard("高级") {
+            Text(
+                "接口路径前缀（一般留空）",
+                color = TextPrimary, fontSize = 14.sp
+            )
             OutlinedTextField(
-                value = apiPrefix, onValueChange = { apiPrefix = it },
-                label = { Text("接口路径前缀（一般留空）", fontSize = 13.sp) },
-                singleLine = true, modifier = Modifier.fillMaxWidth()
+                value = apiPrefix,
+                onValueChange = { apiPrefix = it },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .heightIn(min = 52.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    containerColor = SurfaceLight,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    cursorColor = Brand,
+                    focusedBorderColor = Brand,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.12f)
+                )
             )
-            Button(
-                onClick = {
-                    prefs.apiPrefix = apiPrefix
-                    tip = if (prefs.apiPrefix.isEmpty()) {
-                        "已恢复默认 /api/..."
-                    } else {
-                        "已设为 ${prefs.apiPrefix}/api/..."
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("保存前缀") }
-            Text(
-                "若你的站点把接口挂在子路径下（如 /dl/api/search），这里填 /dl。",
-                color = TextSecondary, fontSize = 11.sp
-            )
+            ActionRow("保存前缀") {
+                prefs.apiPrefix = apiPrefix
+                tip = if (prefs.apiPrefix.isEmpty()) "已恢复默认路径" else "已保存前缀设置"
+            }
+            HintText("若站点把接口挂在子路径下才需要填，例如填 /dl。")
             SwitchRow("忽略 SSL 证书错误", ssl) { ssl = it; prefs.ignoreSsl = it }
-            Text(
-                "仅自建证书场景开启，存在安全风险。",
-                color = TextSecondary, fontSize = 11.sp
-            )
+            HintText("仅自建证书场景开启，存在安全风险。")
         }
 
         if (tip.isNotEmpty()) {
-            Text(tip, color = Color(0xFFFFC46B), fontSize = 13.sp)
+            Text(
+                tip, color = Color(0xFFFFC46B), fontSize = 13.sp,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
         }
+
+        Box(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -405,11 +407,16 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Surface),
         shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Text(title, color = TextPrimary, fontSize = 15.sp)
-            Box(modifier = Modifier.padding(top = 6.dp)) { content() }
+            content()
         }
     }
 }
@@ -419,17 +426,77 @@ private fun SwitchRow(text: String, checked: Boolean, onChange: (Boolean) -> Uni
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .heightIn(min = 44.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text, color = TextPrimary, fontSize = 14.sp)
+        Text(
+            text, color = TextPrimary, fontSize = 14.sp,
+            modifier = Modifier.weight(1f).padding(end = 10.dp)
+        )
         Switch(
             checked = checked,
             onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Brand, checkedTrackColor = Brand.copy(alpha = 0.5f))
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Brand,
+                checkedTrackColor = Brand.copy(alpha = 0.5f)
+            )
         )
     }
+}
+
+@Composable
+private fun ActionRow(text: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Brand)
+    ) {
+        Text(text, fontSize = 14.sp)
+    }
+}
+
+@Composable
+private fun SliderRow(
+    label: String,
+    valueText: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onValue: (Float) -> Unit,
+    onDone: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, color = TextPrimary, fontSize = 14.sp)
+            Text(valueText, color = Brand, fontSize = 13.sp)
+        }
+        Slider(
+            value = value,
+            onValueChange = onValue,
+            onValueChangeFinished = onDone,
+            valueRange = range,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun HintText(text: String) {
+    Text(
+        text, color = TextSecondary, fontSize = 11.sp,
+        lineHeight = 15.sp,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+/** 清除本机所有观看进度（sp 里 wp_ / wf_ 前缀的键） */
+private fun clearAllProgress(prefs: com.yetvplus.nativeapp.data.Prefs) {
+    prefs.clearProgress()
 }
 
 private fun copyToInternal(context: Context, uri: Uri, name: String): File? {
