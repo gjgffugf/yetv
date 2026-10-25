@@ -200,6 +200,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("theme_color", 0)
         set(value) = sp.edit().putInt("theme_color", value).apply()
 
+    /** 搜索整合：把不同源的同一部片合并，详情页/播放页可切源 */
+    var mergeSearch: Boolean
+        get() = sp.getBoolean("merge_search", true)
+        set(value) = sp.edit().putBoolean("merge_search", value).apply()
+
     /** 目标刷新率（Hz）；0 表示跟随系统 */
     var refreshRate: Int
         get() = sp.getInt("refresh_rate", 0)

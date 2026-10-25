@@ -1,0 +1,13 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# 签名库必须随仓库提交，否则每次构建签名都不同、无法覆盖升级
+!app/yetvplus.jks

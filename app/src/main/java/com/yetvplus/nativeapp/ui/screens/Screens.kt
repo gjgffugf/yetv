@@ -85,6 +85,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import com.yetvplus.nativeapp.ui.RefreshRate
 import com.yetvplus.nativeapp.ui.themeArgbState
+import com.yetvplus.nativeapp.data.SearchGroup
 
 // ---------------- 首页 ----------------
 
@@ -92,6 +93,9 @@ private val MOVIE_TAGS = listOf(
     "热门", "最新", "经典", "豆瓣高分", "冷门佳片",
     "华语", "欧美", "韩国", "日本", "动作", "喜剧", "爱情", "科幻", "悬疑", "恐怖"
 )
+/** 首页每页条数（3 列 x 8 行） */
+private const val PAGE_SIZE = 24
+
 private val TV_TAGS = listOf(
     "热门", "美剧", "英剧", "韩剧", "日剧", "国产剧", "港剧", "日本动画", "综艺", "纪录片"
 )
@@ -102,56 +106,75 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
     var tagIndex by remember { mutableIntStateOf(0) }
     val items = remember { mutableStateListOf<DoubanItem>() }
     var loading by remember { mutableStateOf(true) }
+    var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var retry by remember { mutableIntStateOf(0) }
+    // 当前子栏目已加载到的页码（每页 24 条）
+    var page by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     val tags = if (mediaType == 0) MOVIE_TAGS else TV_TAGS
     val type = if (mediaType == 0) "movie" else "tv"
     val tag = tags.getOrNull(tagIndex) ?: "热门"
 
-    LaunchedEffect(mediaType, tagIndex, retry) {
-        loading = true
-        error = ""
-        items.clear()
-        val res = runCatching { app.repo.douban(type, tag) }
-        loading = false
-        if (res.isSuccess) {
-            items.addAll(res.getOrElse { emptyList() })
-            if (items.isEmpty()) {
-                error = if (app.api.lastUnauthorized) {
-                    "站点要求登录（401），请到「我的」登录后再看"
-                } else {
-                    "暂无数据，请检查站点配置或网络"
-                }
-            }
+    fun load(reset: Boolean) {
+        if (reset) {
+            page = 0
+            items.clear()
+            loading = true
+            error = ""
         } else {
-            val m = res.exceptionOrNull()?.message ?: "未知错误"
-            error = if (m.contains("timeout", true)) {
-                "加载超时，可点下方按钮重试"
+            if (loadingMore) return
+            loadingMore = true
+        }
+        val wantPage = page
+        scope.launch {
+            val res = runCatching { app.repo.douban(type, tag, PAGE_SIZE, wantPage * PAGE_SIZE) }
+            if (reset) loading = false else loadingMore = false
+            if (res.isSuccess) {
+                val list = res.getOrElse { emptyList() }
+                if (reset) items.clear()
+                // 去重后追加
+                val known = items.map { it.id }.toSet()
+                items.addAll(list.filter { it.id !in known })
+                if (items.isEmpty()) {
+                    error = if (app.api.lastUnauthorized) {
+                        "站点要求登录（401），请到「我的」登录后再看"
+                    } else {
+                        "暂无数据，请检查站点配置或网络"
+                    }
+                }
             } else {
-                "加载失败：$m"
+                val m = res.exceptionOrNull()?.message ?: "未知错误"
+                error = if (m.contains("timeout", true)) {
+                    "加载超时，可点下方按钮重试"
+                } else {
+                    "加载失败：$m"
+                }
             }
         }
     }
 
+    LaunchedEffect(mediaType, tagIndex, retry) {
+        load(reset = true)
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            ChipTabs(listOf("电影", "剧集"), mediaType) { mediaType = it; tagIndex = 0 }
+        // 大栏目与子栏目用同一套水平内边距，保证左端对齐
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            ChipTabs(listOf("电影", "电视剧"), mediaType) {
+                if (it != mediaType) { mediaType = it; tagIndex = 0 }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            ChipTabs(tags, tagIndex) {
+                if (it != tagIndex) { tagIndex = it }
+            }
         }
-        ChipTabs(tags, tagIndex) { tagIndex = it }
 
         // 栏目切换带淡入过渡
         AnimatedContent(
             targetState = "$mediaType:$tagIndex:$loading:${error.isNotEmpty()}",
-            transitionSpec = {
-                fadeIn(tween(200)) togetherWith fadeOut(tween(150))
-            },
+            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
             label = "homeTab"
         ) { state ->
             val st = state.split(":")
@@ -173,7 +196,11 @@ fun HomeScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = LocalBrand.current)
                 ) { Text("重试") }
             }
-            else -> DoubanGrid(items) { d ->
+            else -> DoubanGrid(
+                items = items,
+                onLoadMore = { if (!loadingMore) { page += 1; load(reset = false) } },
+                loadingMore = loadingMore
+            ) { d ->
                 scope.launch {
                     val list = runCatching { app.repo.search(d.title) }.getOrNull() ?: emptyList()
                     if (list.isNotEmpty()) {
@@ -195,7 +222,7 @@ fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
     // 关键词与结果放在进程级单例里，详情页返回后不丢
     var keyword by remember { mutableStateOf(UiState.keyword) }
     var submitted by remember { mutableStateOf(UiState.submitted) }
-    val results = remember { mutableStateListOf<VideoItem>().apply { addAll(UiState.results) } }
+    val results = remember { mutableStateListOf<SearchGroup>().apply { addAll(UiState.groups) } }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var attempt by remember { mutableIntStateOf(0) }
@@ -223,12 +250,13 @@ fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
         loading = true
         error = ""
         results.clear()
-        val res = runCatching { app.repo.search(submitted) }
+        val merge = prefs.mergeSearch
+        val res = runCatching { app.repo.searchGrouped(submitted, merge) }
         loading = false
         if (res.isSuccess) {
             val list = res.getOrElse { emptyList() }
             results.addAll(list)
-            UiState.results = list
+            UiState.groups = list
             if (results.isEmpty()) {
                 error = if (app.api.lastUnauthorized) {
                     "站点要求登录（401），请登录后重试"
@@ -330,7 +358,7 @@ fun SearchScreen(app: YETVApp, onOpen: (VideoItem) -> Unit) {
                 ) { Text("重试") }
             }
             submitted.isBlank() -> EmptyBox("输入关键词开始搜索")
-            else -> VideoGrid(results) { onOpen(it) }
+            else -> GroupGrid(results) { onOpen(it) }
         }
     }
 }
@@ -498,6 +526,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
     var bgOn by remember { mutableStateOf(prefs.bgEnabled) }
     var dim by remember { mutableFloatStateOf(prefs.bgDim) }
     var keepOn by remember { mutableStateOf(prefs.keepScreenOn) }
+    var merge by remember { mutableStateOf(prefs.mergeSearch) }
     var tip by remember { mutableStateOf("") }
     var themeArgb by remember { mutableIntStateOf(prefs.themeColor) }
     var refreshHz by remember { mutableIntStateOf(prefs.refreshRate) }
@@ -534,13 +563,15 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
         // ---- 个性化 ----
         SettingsCard("个性化") {
             Text("软件默认色", color = TextPrimary, fontSize = 14.sp)
-            Row(
+            // 横向可滑动：色块多时一行放不下，避免点不到后面的颜色
+            LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(end = 4.dp)
             ) {
-                THEME_PRESETS.forEach { (name, argb) ->
+                items(THEME_PRESETS) { (name, argb) ->
                     val selected = themeArgb == argb
                     Box(
                         modifier = Modifier
@@ -657,7 +688,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
         // ---- 播放 ----
         SettingsCard("播放") {
             SwitchRow("播放时保持屏幕常亮", keepOn) { keepOn = it; prefs.keepScreenOn = it }
-            HintText("播放默认竖屏小窗；横屏请点视频右下角的全屏按钮（随播放控件一起显隐）。")
+            SwitchRow("搜索整合", merge) { merge = it; prefs.mergeSearch = it }
         }
 
         // ---- 缓存与记录 ----

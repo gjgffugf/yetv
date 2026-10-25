@@ -2,6 +2,7 @@ package com.yetvplus.nativeapp.ui
 
 import androidx.compose.runtime.mutableIntStateOf
 import com.yetvplus.nativeapp.data.VideoItem
+import com.yetvplus.nativeapp.data.SearchGroup
 
 /**
  * 主题色（ARGB）。放在可观察状态里，设置页改了立刻重组，无需重启应用。
@@ -25,6 +26,9 @@ object UiState {
     /** 上次搜索结果，返回搜索页时直接复用 */
     var results: List<VideoItem> = emptyList()
 
+    /** 整合后的搜索结果（切走再切回也保留，不用重新搜索） */
+    var groups: List<SearchGroup> = emptyList()
+
     /** 是否已有一次成功/失败的搜索（决定显示结果还是空态） */
     var searched: Boolean = false
 
@@ -32,6 +36,7 @@ object UiState {
         keyword = ""
         submitted = ""
         results = emptyList()
+        groups = emptyList()
         searched = false
     }
 }

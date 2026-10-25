@@ -70,29 +70,26 @@ jobs:
       - name: 缓存 Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: 生成签名密钥
+      - name: 校验固定签名库
         run: |
-          keytool -genkeypair -v \
-            -keystore release.jks \
-            -alias yetvplus \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass yetvplus2026 \
-            -keypass yetvplus2026 \
-            -dname "CN=YETVPlus, OU=App, O=YETVPlus, L=Unknown, ST=Unknown, C=CN"
+          set -e
+          # 签名库已随仓库提交（app/yetvplus.jks），每次构建复用同一把密钥，
+          # 保证所有版本的签名一致、可覆盖升级。
+          if [ ! -f app/yetvplus.jks ]; then
+            echo "!! 缺少 app/yetvplus.jks，无法签名"
+            exit 1
+          fi
+          keytool -list -keystore app/yetvplus.jks \
+            -storepass yetvplus -alias yetvplus
 
       - name: 编译 Debug APK
         run: |
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: 编译 Release APK
-        continue-on-error: true
+      - name: 编译 Release APK（使用固定签名）
         run: |
-          ./gradlew assembleRelease --no-daemon --stacktrace \
-            -PMTV_STORE_FILE=../release.jks \
-            -PMTV_STORE_PASSWORD=yetvplus2026 \
-            -PMTV_KEY_ALIAS=yetvplus \
-            -PMTV_KEY_PASSWORD=yetvplus2026
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: 整理产物
         if: always()

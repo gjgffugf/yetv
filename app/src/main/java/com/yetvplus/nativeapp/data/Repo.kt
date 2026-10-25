@@ -19,6 +19,38 @@ class Repo(private val api: ApiClient, private val prefs: Prefs) {
         Mapping.parseSearch(api.get("/api/search", mapOf("q" to q)))
     }
 
+    /**
+     * 搜索并整合：把不同源里同名（标题归一化后）的条目合并成一组，
+     * 这样列表里一部片只出现一次，进详情后可横向切源。
+     *
+     * @param merge false 时直接返回原始结果（每个源各占一个卡片）
+     */
+    suspend fun searchGrouped(q: String, merge: Boolean): List<SearchGroup> =
+        withContext(Dispatchers.IO) {
+            val list = search(q)
+            if (!merge) {
+                return@withContext list.map { v ->
+                    SearchGroup(v.title, v.poster, listOf(v))
+                }
+            }
+            val buckets = LinkedHashMap<String, MutableList<VideoItem>>()
+            for (v in list) {
+                val k = normalize(v.title)
+                if (k.isEmpty()) continue
+                buckets.getOrPut(k) { ArrayList() }.add(v)
+            }
+            buckets.values.map { vs ->
+                // 集数多的源排前面，默认用资源最全的
+                val sorted = vs.sortedByDescending { it.episodes.size }
+                SearchGroup(sorted.first().title, sorted.first().poster, sorted)
+            }
+        }
+
+    /** 标题归一化：去空格、标点、全角符号，避免同一部片因标点差异分成两组 */
+    private fun normalize(t: String): String = t
+        .replace(Regex("[\\s　:：·・\\-—_()（）【】\\[\\]《》<>「」『』,，.。!！?？'\"’“”]"), "")
+        .lowercase()
+
     suspend fun detail(source: String, id: String): DetailInfo = withContext(Dispatchers.IO) {
         Mapping.parseDetail(api.get("/api/detail", mapOf("source" to source, "id" to id)))
     }

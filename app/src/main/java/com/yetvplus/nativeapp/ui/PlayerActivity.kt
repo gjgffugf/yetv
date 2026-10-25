@@ -72,6 +72,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
+import com.yetvplus.nativeapp.ui.PlayerArgs
+import com.yetvplus.nativeapp.data.VideoItem
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
@@ -105,6 +108,7 @@ class PlayerActivity : ComponentActivity() {
                 PlayerScreen(
                     app = app,
                     urls = urls,
+                    variants = PlayerArgs.variants,
                     names = names,
                     startIndex = index,
                     title = title,
@@ -140,6 +144,7 @@ private fun PlayerScreen(
     title: String,
     poster: String,
     videoKey: String,
+    variants: List<VideoItem> = emptyList(),
     onClose: () -> Unit,
     onExternal: (String) -> Unit
 ) {
@@ -147,11 +152,22 @@ private fun PlayerScreen(
     val activity = context as? Activity
     val prefs = app.prefs
 
+    var variantIndex by remember { mutableIntStateOf(0) }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (urls.size - 1).coerceAtLeast(0))) }
     var error by remember { mutableStateOf("") }
     var fullscreen by remember { mutableStateOf(false) }
     // 播放器控件是否可见；全屏按钮跟随它显隐，不再常驻
     var controlsVisible by remember { mutableStateOf(true) }
+
+    // 切源后的分集（源自带时直接用，否则回退到打开时传入的）
+    val activeUrls = remember(variantIndex, variants) {
+        val v = variants.getOrNull(variantIndex)
+        if (v != null && v.episodes.isNotEmpty()) v.episodes.map { it.url } else urls
+    }
+    val activeNames = remember(variantIndex, variants) {
+        val v = variants.getOrNull(variantIndex)
+        if (v != null && v.episodes.isNotEmpty()) v.episodes.map { it.name } else names
+    }
 
     val player = remember {
         val referer = prefs.baseUrl + "/"
@@ -188,7 +204,7 @@ private fun PlayerScreen(
 
     // 切集：先存上一集，再加载新一集（有记录就续播）
     DisposableEffect(index) {
-        val url = urls.getOrNull(index) ?: ""
+        val url = activeUrls.getOrNull(index) ?: ""
         if (url.isNotEmpty()) {
             error = ""
             player.setMediaItem(MediaItem.fromUri(url))
@@ -249,13 +265,24 @@ private fun PlayerScreen(
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         if (fullscreen) {
             // ---- 全屏模式 ----
-            VideoArea(player = player, modifier = Modifier.fillMaxSize(), rounded = false)
+            VideoArea(
+                player = player,
+                modifier = Modifier.fillMaxSize(),
+                rounded = false,
+                onControllerVisibility = { controlsVisible = it }
+            )
 
+            // 顶部返回 / 外部播放器：跟随播放控件显隐，不再常驻
+            AnimatedVisibility(
+                visible = controlsVisible,
+                modifier = Modifier.align(Alignment.TopStart),
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(180))
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-                    .align(Alignment.TopStart),
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onClose) {
@@ -264,7 +291,7 @@ private fun PlayerScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(title, color = Color.White, fontSize = 14.sp, maxLines = 1)
                     Text(
-                        names.getOrNull(index) ?: "",
+                        activeNames.getOrNull(index) ?: "",
                         color = Color(0xCCFFFFFF), fontSize = 12.sp
                     )
                 }
@@ -272,20 +299,31 @@ private fun PlayerScreen(
                     "外部播放器", color = Color.White, fontSize = 12.sp,
                     modifier = Modifier
                         .padding(end = 10.dp)
-                        .clickable { onExternal(urls.getOrNull(index) ?: "") }
+                        .clickable { onExternal(activeUrls.getOrNull(index) ?: "") }
                 )
             }
+            }
 
-            // 退出全屏按钮：同样放右下角
-            IconButton(
-                onClick = { fullscreen = false },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(18.dp)
-                    .size(44.dp)
-                    .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(22.dp))
+            // 退出全屏按钮：跟随控件显隐，并左移一个按钮距离，避免挡住设置按钮
+            AnimatedVisibility(
+                visible = controlsVisible,
+                modifier = Modifier.align(Alignment.BottomEnd),
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(180))
             ) {
-                Icon(Icons.Default.FullscreenExit, contentDescription = "退出全屏", tint = Color.White)
+                IconButton(
+                    onClick = { fullscreen = false },
+                    modifier = Modifier
+                        .padding(end = 66.dp, bottom = 18.dp)
+                        .size(44.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(22.dp))
+                ) {
+                    Icon(
+                        Icons.Default.FullscreenExit,
+                        contentDescription = "退出全屏",
+                        tint = Color.White
+                    )
+                }
             }
 
             if (error.isNotEmpty()) {
@@ -326,7 +364,7 @@ private fun PlayerScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(title, color = Color.White, fontSize = 14.sp, maxLines = 1)
                             Text(
-                                names.getOrNull(index) ?: "",
+                                activeNames.getOrNull(index) ?: "",
                                 color = Color(0xCCFFFFFF), fontSize = 12.sp, maxLines = 1
                             )
                         }
@@ -334,7 +372,7 @@ private fun PlayerScreen(
                             "外部播放器", color = Color.White, fontSize = 12.sp,
                             modifier = Modifier
                                 .padding(end = 6.dp)
-                                .clickable { onExternal(urls.getOrNull(index) ?: "") }
+                                .clickable { onExternal(activeUrls.getOrNull(index) ?: "") }
                         )
                     }
 
@@ -374,7 +412,7 @@ private fun PlayerScreen(
                     )
                     if (urls.size > 1) {
                         Text(
-                            "共 ${urls.size} 集 · 正在播放第 ${index + 1} 集",
+                            "共 ${activeUrls.size} 集 · 正在播放第 ${index + 1} 集",
                             color = TextSecondary, fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
                         )
@@ -382,7 +420,7 @@ private fun PlayerScreen(
                 }
 
                 // 上一集 / 下一集
-                if (urls.size > 1) {
+                if (activeUrls.size > 1) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -394,22 +432,30 @@ private fun PlayerScreen(
                         }
                         PlayerButton(
                             "下一集",
-                            enabled = index < urls.size - 1,
+                            enabled = index < activeUrls.size - 1,
                             modifier = Modifier.weight(1f)
                         ) {
-                            if (index < urls.size - 1) index++
+                            if (index < activeUrls.size - 1) index++
                         }
                     }
                 }
 
+                // 多源时：集数上方横向切源
+                if (variants.size > 1) {
+                    SourceSwitchBar(
+                        variants = variants,
+                        current = variantIndex,
+                        onPick = { variantIndex = it }
+                    )
+                }
                 // 集数列表（分段 + 正序/倒序 + 观看状态着色）
                 if (urls.size > 1) {
                     Spacer(modifier = Modifier.height(16.dp))
                     EpisodeSection(
-                        episodes = urls.mapIndexed { i, _ ->
+                        episodes = activeUrls.mapIndexed { i, _ ->
                             com.yetvplus.nativeapp.data.Episode(
-                                names.getOrNull(i) ?: "第${i + 1}集",
-                                urls[i]
+                                activeNames.getOrNull(i) ?: "第${i + 1}集",
+                                activeUrls[i]
                             )
                         },
                         finished = { i -> prefs.isFinished(videoKey, i) },

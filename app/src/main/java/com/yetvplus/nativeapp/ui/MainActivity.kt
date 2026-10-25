@@ -68,6 +68,12 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import com.yetvplus.nativeapp.data.SearchGroup
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 
 object Route {
     const val LOGIN = "login"
@@ -82,6 +88,14 @@ object Route {
 /** 跨页面传递当前视频（避免把长参数塞进路由） */
 object NavArgs {
     var video: VideoItem? = null
+
+    /** 搜索整合后的分组；非空时详情页/播放页可横向切源 */
+    var group: SearchGroup? = null
+}
+
+/** 传给播放页的额外参数 */
+object PlayerArgs {
+    var variants: List<VideoItem> = emptyList()
 }
 
 class MainActivity : ComponentActivity() {
@@ -167,12 +181,14 @@ private fun AppRoot() {
                     composable(Route.HOME) {
                         HomeScreen(app) { v ->
                             NavArgs.video = v
+                            NavArgs.group = SearchGroup(v.title, v.poster, listOf(v))
                             navController.navigate(Route.DETAIL)
                         }
                     }
                     composable(Route.SEARCH) {
-                        SearchScreen(app) { v ->
-                            NavArgs.video = v
+                        SearchScreen(app) { g ->
+                            NavArgs.group = g
+                            NavArgs.video = g.best
                             navController.navigate(Route.DETAIL)
                         }
                     }
@@ -184,12 +200,14 @@ private fun AppRoot() {
                             onOpenRecord = { r ->
                                 // key 形如 "source+id"，拆出来走详情接口现取分集
                                 val parts = r.key.split("+", limit = 2)
-                                NavArgs.video = VideoItem(
+                                val v = VideoItem(
                                     source = parts.getOrNull(0) ?: "",
                                     id = parts.getOrNull(1) ?: "",
                                     title = r.title,
                                     poster = r.poster
                                 )
+                                NavArgs.video = v
+                                NavArgs.group = SearchGroup(v.title, v.poster, listOf(v))
                                 navController.navigate(Route.DETAIL)
                             },
                             onLogout = {
@@ -199,7 +217,19 @@ private fun AppRoot() {
                             }
                         )
                     }
-                    composable(Route.DETAIL) {
+                    composable(
+                        Route.DETAIL,
+                        enterTransition = {
+                            fadeIn(tween(240)) + scaleIn(
+                                tween(240), initialScale = 0.94f
+                            )
+                        },
+                        exitTransition = { fadeOut(tween(180)) },
+                        popEnterTransition = { fadeIn(tween(200)) },
+                        popExitTransition = {
+                            fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.96f)
+                        }
+                    ) {
                         DetailScreen(app) { navController.popBackStack() }
                     }
                     composable(Route.SETTINGS) {
@@ -213,7 +243,13 @@ private fun AppRoot() {
 
 /**
  * 底部液态玻璃 Dock 栏。
- * 半透明渐变 + 细高光描边 + 悬浮阴影，选中项用主色胶囊高亮并带缩放动画。
+ *
+ * - 半透明渐变 + 高光描边 + 悬浮阴影
+ * - 选中项下方有胶囊滑块，用 spring 动画平移
+ * - 支持长按后左右拖动切换，拖动过程中实时切页
+ *
+ * 对齐要点：滑块与每一项内容都用同一个高度（ITEM_H）并以容器垂直中心对齐，
+ * 这样滑块必然落在图标+文字的正中间。
  */
 @Composable
 private fun GlassDock(
@@ -224,6 +260,7 @@ private fun GlassDock(
     val brand = LocalBrand.current
     val index = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
     val n = tabs.size.coerceAtLeast(1)
+    val itemH = 48.dp
 
     Box(
         modifier = Modifier
@@ -250,20 +287,51 @@ private fun GlassDock(
                     RoundedCornerShape(30.dp)
                 )
         ) {
-            // 滑块：宽度 = 整条 / 项数，横向平移到选中项
-            val slotW = maxWidth / n
-            val padding = 6.dp
-            val pillW = slotW - padding * 2
+            val innerPad = 6.dp
+            val slotW = (maxWidth - innerPad * 2) / n
+
+            // 拖动切换：长按后在栏内左右滑动，手指经过哪一项就切到哪一项
+            val slotPx = with(LocalDensity.current) { slotW.toPx() }
+            val padPx = with(LocalDensity.current) { innerPad.toPx() }
+            val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
+            fun idxAt(x: Float): Int {
+                val i = ((x - padPx) / slotPx).toInt()
+                return i.coerceIn(0, n - 1)
+            }
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .pointerInput(tabs, n) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                if (offset.x in 0f..widthPx) {
+                                    val t = tabs[idxAt(offset.x)]
+                                    if (t.route != currentRoute) onSelect(t.route)
+                                }
+                            },
+                            onDrag = { change, _ ->
+                                val x = change.position.x
+                                if (x in 0f..widthPx) {
+                                    val t = tabs[idxAt(x)]
+                                    if (t.route != currentRoute) onSelect(t.route)
+                                }
+                            },
+                            onDragEnd = {},
+                            onDragCancel = {}
+                        )
+                    }
+            )
+
             val offsetX by animateDpAsState(
-                targetValue = slotW * index + padding,
+                targetValue = innerPad + slotW * index,
                 animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f),
                 label = "dockPill"
             )
             Box(
                 modifier = Modifier
                     .offset(x = offsetX)
-                    .width(pillW)
-                    .height(46.dp)
+                    .width(slotW)
+                    .height(itemH)
                     .align(Alignment.CenterStart)
                     .clip(RoundedCornerShape(23.dp))
                     .background(brand.copy(alpha = 0.20f))
@@ -277,14 +345,14 @@ private fun GlassDock(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp),
+                    .padding(horizontal = innerPad),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 tabs.forEach { t ->
                     val selected = currentRoute == t.route
                     val size by animateDpAsState(
-                        targetValue = if (selected) 26.dp else 22.dp,
+                        targetValue = if (selected) 25.dp else 22.dp,
                         label = "dockIcon"
                     )
                     val tint by animateColorAsState(
@@ -294,9 +362,9 @@ private fun GlassDock(
                     Column(
                         modifier = Modifier
                             .weight(1f)
+                            .height(itemH)
                             .clip(RoundedCornerShape(22.dp))
-                            .clickable { onSelect(t.route) }
-                            .padding(vertical = 7.dp),
+                            .clickable { onSelect(t.route) },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {

@@ -64,6 +64,10 @@ import com.yetvplus.nativeapp.ui.theme.SurfaceLight
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collect
+import com.yetvplus.nativeapp.data.SearchGroup
 
 
 
@@ -115,33 +119,38 @@ fun EmptyBox(text: String) {
 }
 
 @Composable
+/** 海报 + 标题的可复用卡片；badge 显示在右上角 */
+@Composable
+fun PosterCard(item: VideoItem, badge: String = "") {
+    Column {
+        PosterImage(url = item.poster, ratio = 0.72f, badge = badge)
+        Text(
+            item.title,
+            color = TextPrimary,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 5.dp)
+        )
+        val sub = listOfNotNull(
+            item.rate.takeIf { it.isNotEmpty() },
+            item.year.takeIf { it.isNotEmpty() },
+            item.sourceName.takeIf { it.isNotEmpty() }
+        ).joinToString(" · ")
+        if (sub.isNotEmpty()) {
+            Text(sub, color = TextSecondary, fontSize = 10.sp, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 fun VideoCard(item: VideoItem, onClick: () -> Unit) {
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+            .clickable { onClick() }
     ) {
-        Column {
-            PosterImage(url = item.poster, ratio = 0.72f)
-            Text(
-                item.title,
-                color = TextPrimary,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 5.dp)
-            )
-            val sub = listOfNotNull(
-                item.rate.takeIf { it.isNotEmpty() },
-                item.year.takeIf { it.isNotEmpty() },
-                item.sourceName.takeIf { it.isNotEmpty() }
-            ).joinToString(" · ")
-            if (sub.isNotEmpty()) {
-                Text(sub, color = TextSecondary, fontSize = 10.sp, maxLines = 1)
-            }
-        }
+        PosterCard(item)
     }
 }
 
@@ -268,31 +277,50 @@ fun VideoGrid(
 fun DoubanGrid(
     items: List<DoubanItem>,
     modifier: Modifier = Modifier,
+    loadingMore: Boolean = false,
+    onLoadMore: () -> Unit = {},
     onClick: (DoubanItem) -> Unit
 ) {
+    val state = rememberLazyGridState()
+
+    // 滑到倒数第二行就提前请求下一页，避免到底才加载导致卡顿
+    LaunchedEffect(state, items.size) {
+        snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
+            .collect { last ->
+                if (last >= items.size - 4 && items.isNotEmpty()) {
+                    onLoadMore()
+                }
+            }
+    }
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
+        state = state,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(items, key = { it.id + it.title }) { item ->
+        items(items, key = { it.key + it.title }) { item ->
             DoubanCard(item) { onClick(item) }
         }
+        if (loadingMore) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = LocalBrand.current,
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+        }
     }
-}
-
-@Composable
-fun SectionTitle(text: String) {
-    Text(
-        text,
-        color = TextPrimary,
-        fontSize = 15.sp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    )
 }
 
 @Composable
@@ -483,6 +511,104 @@ fun EpisodeSection(
                 }
             }
         }
+        }
+    }
+}
+
+// ---------------- 源切换横条 ----------------
+
+/**
+ * 集数下方横向可滑动的源切换条。
+ * 每个按钮右上角角标显示该源拥有的集数。
+ */
+@Composable
+fun SourceSwitchBar(
+    variants: List<VideoItem>,
+    current: Int,
+    onPick: (Int) -> Unit
+) {
+    if (variants.isEmpty()) return
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "播放源（${variants.size}）",
+            color = TextPrimary,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+        )
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            itemsIndexed(variants) { i, v ->
+                val on = i == current
+                val bg by animateColorAsState(
+                    targetValue = if (on) LocalBrand.current else SurfaceLight,
+                    animationSpec = tween(200),
+                    label = "srcBg"
+                )
+                val fg by animateColorAsState(
+                    targetValue = if (on) Color.White else TextPrimary,
+                    animationSpec = tween(200),
+                    label = "srcFg"
+                )
+                Box(
+                    modifier = Modifier
+                        .background(bg, RoundedCornerShape(10.dp))
+                        .clickable { if (!on) onPick(i) }
+                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            v.sourceName.ifEmpty { v.source.ifEmpty { "源${i + 1}" } },
+                            color = fg,
+                            fontSize = 12.sp
+                        )
+                        // 右上角角标：该源的集数
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .background(
+                                    if (on) Color.White.copy(alpha = 0.22f) else Surface,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                if (v.episodes.isNotEmpty()) "${v.episodes.size}集" else "?",
+                                color = fg,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------- 整合结果网格 ----------------
+
+/** 搜索整合后的网格：一个卡片一部片，右上角标显示有几个源 */
+@Composable
+fun GroupGrid(
+    items: List<SearchGroup>,
+    modifier: Modifier = Modifier,
+    onClick: (SearchGroup) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        items(items, key = { it.key + it.title }) { g ->
+            val badge = if (g.variants.size > 1) "${g.variants.size}源" else ""
+            Box(modifier = Modifier.clickable { onClick(g) }) {
+                PosterCard(g.best, badge)
+            }
         }
     }
 }

@@ -54,11 +54,18 @@ import com.yetvplus.nativeapp.ui.theme.TextPrimary
 import com.yetvplus.nativeapp.ui.theme.TextSecondary
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableIntStateOf
+import com.yetvplus.nativeapp.ui.PlayerArgs
+import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
     val context = LocalContext.current
-    val base = NavArgs.video ?: VideoItem()
+    val group = NavArgs.group
+    // 当前选中的源；有多个源时可切换
+    var variantIndex by remember { mutableIntStateOf(0) }
+    val variants = group?.variants ?: listOf(NavArgs.video ?: VideoItem())
+    val base = variants.getOrNull(variantIndex) ?: NavArgs.video ?: VideoItem()
     var info by remember { mutableStateOf(DetailInfo(base)) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
@@ -175,6 +182,13 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                         modifier = Modifier.padding(vertical = 14.dp))
                 }
                 episodes.isNotEmpty() -> {
+                    if (variants.size > 1) {
+                        SourceSwitchBar(
+                            variants = variants,
+                            current = variantIndex,
+                            onPick = { variantIndex = it }
+                        )
+                    }
                     EpisodeSection(
                         episodes = episodes,
                         finished = { i -> app.prefs.isFinished(base.key, i) },
@@ -190,6 +204,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                             putExtra("videoKey", base.key)
                             putExtra("total", episodes.size)
                             putExtra("poster", item.poster.ifEmpty { base.poster })
+                            PlayerArgs.variants = variants
                         }
                         context.startActivity(i)
                     }

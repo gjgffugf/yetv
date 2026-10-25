@@ -41,6 +41,21 @@ data class DetailInfo(
     val episodes: List<Episode> = emptyList()
 )
 
+/**
+ * 搜索整合后的一组：同一部片在不同源下的条目。
+ * 列表里只占一个卡片，进详情 / 播放后可在集数下方横向切源。
+ */
+data class SearchGroup(
+    val title: String = "",
+    val poster: String = "",
+    /** 同一部片在各源下的条目，已按集数从多到少排序 */
+    val variants: List<VideoItem> = emptyList()
+) {
+    /** 默认选中集数最多的那个源 */
+    val best: VideoItem get() = variants.firstOrNull() ?: VideoItem()
+    val key: String get() = best.key
+}
+
 data class DoubanItem(
     val id: String = "",
     val title: String = "",

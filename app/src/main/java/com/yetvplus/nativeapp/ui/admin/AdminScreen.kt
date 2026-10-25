@@ -171,8 +171,6 @@ private fun SiteTab(app: YETVApp) {
         ) { Text("保存站点配置") }
 
         if (tip.isNotEmpty()) Text(tip, color = Color(0xFFFFC46B), fontSize = 13.sp)
-        Text("说明：以上字段按 MoonTVPlus 的 SiteConfig 命名提交，抓包校准后可调整。",
-            color = TextSecondary, fontSize = 11.sp)
     }
 }
 
@@ -433,10 +431,6 @@ private fun AdvancedTab(app: YETVApp) {
         ) { Text("拉取订阅") }
 
         if (tip.isNotEmpty()) Text(tip, color = Color(0xFFFFC46B), fontSize = 13.sp)
-        Text(
-            "提示：管理面板接口字段名会随版本变化，抓包校准后可在 Repo / Models 中集中调整。",
-            color = TextSecondary, fontSize = 11.sp
-        )
     }
 }
 
