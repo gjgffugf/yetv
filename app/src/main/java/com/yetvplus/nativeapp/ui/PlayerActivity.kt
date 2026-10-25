@@ -229,7 +229,7 @@ private fun PlayerScreen(
             // 只挂 HLS 时，任何非 m3u8 的地址（mp4/mkv/无扩展名的直链）
             // 都会解析失败 —— 这就是「所有源都播放失败、网页端正常」的原因。
             .setMediaSourceFactory(
-                androidx.media3.exoplayer.DefaultMediaSourceFactory(dataSource)
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSource)
             )
             .build()
             .apply { playWhenReady = true }

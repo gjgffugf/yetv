@@ -67,7 +67,9 @@ android {
         // 仍标记为 @ExperimentalMaterial3Api，全局放行，免得逐个文件加注解
         freeCompilerArgs += listOf(
             "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
-            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi"
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+            // media3 的 DefaultMediaSourceFactory 等标了 @UnstableApi，一并放行
+            "-opt-in=androidx.media3.common.util.UnstableApi"
         )
     }
 
