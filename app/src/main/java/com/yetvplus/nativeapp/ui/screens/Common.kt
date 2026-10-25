@@ -386,9 +386,11 @@ fun EpisodeSection(
     episodes: List<Episode>,
     finished: (Int) -> Boolean,
     progress: (Int) -> Float,
-    onPick: (Int) -> Unit,
-    /** 正在播放的集数下标；-1 表示没有（例如刚切换了源、还没选集） */
-    playingIndex: Int = -1
+    /** 正在播放的集数下标；-1 表示没有（例如刚切换了源、还没选集）。
+     *  必须放在 onPick 之前：Kotlin 的尾随 lambda 只会绑定到最后一个参数，
+     *  若它排在 onPick 后面，调用处的尾随 lambda 就会被误当成 playingIndex。 */
+    playingIndex: Int = -1,
+    onPick: (Int) -> Unit
 ) {
     val total = episodes.size
     if (total == 0) return

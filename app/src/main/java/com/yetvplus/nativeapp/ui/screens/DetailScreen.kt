@@ -241,11 +241,13 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                             }
                         )
                     }
+                    // onPick 必须具名传入：playingIndex 是它后面的参数，
+                    // 若用尾随 lambda 会被绑定到 playingIndex（Int）而不是 onPick。
                     EpisodeSection(
                         episodes = episodes,
                         finished = { i -> app.prefs.isFinished(base.key, i) },
-                        progress = { i -> app.prefs.getProgress(base.key, i) }
-                    ) { index ->
+                        progress = { i -> app.prefs.getProgress(base.key, i) },
+                        onPick = { index ->
                         val urls = ArrayList(episodes.map { it.url })
                         val names = ArrayList(episodes.map { it.name })
                         val i = Intent(context, PlayerActivity::class.java).apply {
@@ -260,6 +262,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                         }
                         context.startActivity(i)
                     }
+                    )
                 }
                 else -> {
                     Text("暂未获取到播放地址", color = LocalTextSecondary.current, fontSize = 13.sp,
