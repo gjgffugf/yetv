@@ -48,10 +48,10 @@ import com.yetvplus.nativeapp.data.VideoItem
 import com.yetvplus.nativeapp.ui.NavArgs
 import com.yetvplus.nativeapp.ui.PlayerActivity
 import com.yetvplus.nativeapp.ui.theme.Brand
-import com.yetvplus.nativeapp.ui.theme.Surface
-import com.yetvplus.nativeapp.ui.theme.SurfaceLight
-import com.yetvplus.nativeapp.ui.theme.TextPrimary
-import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.LocalSurface
+import com.yetvplus.nativeapp.ui.theme.LocalSurfaceLight
+import com.yetvplus.nativeapp.ui.theme.LocalTextPrimary
+import com.yetvplus.nativeapp.ui.theme.LocalTextSecondary
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableIntStateOf
@@ -60,6 +60,7 @@ import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableStateListOf
 import com.yetvplus.nativeapp.data.DoubanItem
+import androidx.compose.material3.CircularProgressIndicator
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
@@ -148,11 +149,11 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = TextPrimary)
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = LocalTextPrimary.current)
             }
             Text(
                 showTitle,
-                color = TextPrimary,
+                color = LocalTextPrimary.current,
                 fontSize = 17.sp,
                 maxLines = 1
             )
@@ -173,12 +174,12 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                         .width(108.dp)
                         .height(150.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Surface)
+                        .background(LocalSurface.current)
                 )
                 Column(modifier = Modifier.padding(start = 12.dp)) {
                     Text(
                         showTitle,
-                        color = TextPrimary, fontSize = 16.sp
+                        color = LocalTextPrimary.current, fontSize = 16.sp
                     )
                     val meta = listOfNotNull(
                         item.rate.takeIf { it.isNotEmpty() },
@@ -187,11 +188,11 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                         item.sourceName.takeIf { it.isNotEmpty() }
                     ).joinToString(" · ")
                     if (meta.isNotEmpty()) {
-                        Text(meta, color = TextSecondary, fontSize = 12.sp,
+                        Text(meta, color = LocalTextSecondary.current, fontSize = 12.sp,
                             modifier = Modifier.padding(top = 6.dp))
                     }
                     if (item.note.isNotEmpty()) {
-                        Text(item.note, color = TextSecondary, fontSize = 12.sp,
+                        Text(item.note, color = LocalTextSecondary.current, fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp))
                     }
                 }
@@ -199,12 +200,12 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
 
             if (item.desc.isNotBlank()) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Surface),
+                    colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        item.desc, color = TextSecondary, fontSize = 13.sp,
+                        item.desc, color = LocalTextSecondary.current, fontSize = 13.sp,
                         modifier = Modifier.padding(12.dp)
                     )
                 }
@@ -212,9 +213,17 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
 
             when {
                 loading -> {
-                    Box(modifier = Modifier.fillMaxWidth().height(120.dp),
-                        contentAlignment = Alignment.Center) {
-                        Text("加载中…", color = TextSecondary, fontSize = 13.sp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = LocalBrand.current,
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 2.5.dp
+                        )
                     }
                 }
                 error.isNotEmpty() -> {
@@ -253,7 +262,7 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                     }
                 }
                 else -> {
-                    Text("暂未获取到播放地址", color = TextSecondary, fontSize = 13.sp,
+                    Text("暂未获取到播放地址", color = LocalTextSecondary.current, fontSize = 13.sp,
                         modifier = Modifier.padding(vertical = 14.dp))
                 }
             }

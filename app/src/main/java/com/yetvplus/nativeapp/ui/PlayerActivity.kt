@@ -58,10 +58,10 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.yetvplus.nativeapp.YETVApp
 import com.yetvplus.nativeapp.ui.theme.Brand
-import com.yetvplus.nativeapp.ui.theme.Surface
-import com.yetvplus.nativeapp.ui.theme.SurfaceLight
-import com.yetvplus.nativeapp.ui.theme.TextPrimary
-import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.LocalSurface
+import com.yetvplus.nativeapp.ui.theme.LocalSurfaceLight
+import com.yetvplus.nativeapp.ui.theme.LocalTextPrimary
+import com.yetvplus.nativeapp.ui.theme.LocalTextSecondary
 import com.yetvplus.nativeapp.ui.theme.YETVTheme
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.foundation.layout.Spacer
@@ -80,6 +80,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitFirstDown
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
+import androidx.compose.material3.CircularProgressIndicator
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
@@ -109,7 +110,7 @@ class PlayerActivity : ComponentActivity() {
         setContent {
             val saved = themeArgbState.intValue
             val brand = if (saved == 0) Brand else Color(saved)
-            YETVTheme(brandColor = brand) {
+            YETVTheme(brandColor = brand, dark = darkModeState.value) {
                 PlayerScreen(
                     app = app,
                     urls = urls,
@@ -159,6 +160,9 @@ private fun PlayerScreen(
 
     var variantIndex by remember { mutableIntStateOf(0) }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (urls.size - 1).coerceAtLeast(0))) }
+    // 真正加载在播放器里的地址。切源后新源的 URL 与它不同，
+    // 于是高亮自动消失，需要重新选一集 —— 但当前播放不会被打断。
+    var playingUrl by remember { mutableStateOf(urls.getOrNull(index) ?: "") }
     var error by remember { mutableStateOf("") }
     var fullscreen by remember { mutableStateOf(false) }
     // 播放器控件是否可见；全屏按钮跟随它显隐，不再常驻
@@ -166,6 +170,9 @@ private fun PlayerScreen(
     // 长按快进中
     var speeding by remember { mutableStateOf(false) }
     var savedSpeed by remember { mutableFloatStateOf(1f) }
+    // 加载过程中的步骤提示
+    var loadStep by remember { mutableStateOf("准备中…") }
+    var loading by remember { mutableStateOf(true) }
 
     // 切源后的分集（源自带时直接用，否则回退到打开时传入的）
     val activeUrls = remember(variantIndex, variants) {
@@ -230,17 +237,30 @@ private fun PlayerScreen(
         val url = activeUrls.getOrNull(index) ?: ""
         if (url.isNotEmpty()) {
             error = ""
+            playingUrl = url
+            loadStep = "正在解析地址…"
+            loading = true
             player.setMediaItem(MediaItem.fromUri(url))
+            loadStep = "正在缓冲…"
             player.prepare()
 
             val saved = if (videoKey.isNotEmpty()) prefs.getProgress(videoKey, index) else 0f
             val done = if (videoKey.isNotEmpty()) prefs.isFinished(videoKey, index) else false
             player.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY && !done && saved > 0.02f && saved < 0.95f) {
-                        val d = player.duration
-                        if (d > 0) player.seekTo((d * saved).toLong())
-                        player.removeListener(this)
+                    when (state) {
+                        Player.STATE_BUFFERING -> { loading = true; loadStep = "正在缓冲…" }
+                        Player.STATE_READY -> {
+                            loading = false
+                            loadStep = "即将播放"
+                            if (!done && saved > 0.02f && saved < 0.95f) {
+                                val d = player.duration
+                                if (d > 0) player.seekTo((d * saved).toLong())
+                            }
+                            player.removeListener(this)
+                        }
+                        Player.STATE_ENDED -> { loading = false; loadStep = "播放结束" }
+                        Player.STATE_IDLE -> { loading = true; loadStep = "准备中…" }
                     }
                 }
             })
@@ -335,6 +355,8 @@ private fun PlayerScreen(
 
             if (speeding) FastForwardHint()
 
+            if (loading && error.isEmpty()) LoadingHint(loadStep)
+
             if (error.isNotEmpty()) {
                 ErrorOverlay(error)
             }
@@ -392,6 +414,8 @@ private fun PlayerScreen(
 
                     if (speeding) FastForwardHint()
 
+                    if (loading && error.isEmpty()) LoadingHint(loadStep)
+
                     if (error.isNotEmpty()) {
                         ErrorOverlay(error)
                     }
@@ -401,12 +425,12 @@ private fun PlayerScreen(
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                     Text(
                         title.ifEmpty { "播放" },
-                        color = TextPrimary, fontSize = 17.sp, maxLines = 2
+                        color = LocalTextPrimary.current, fontSize = 17.sp, maxLines = 2
                     )
                     if (urls.size > 1) {
                         Text(
                             "共 ${activeUrls.size} 集 · 正在播放第 ${index + 1} 集",
-                            color = TextSecondary, fontSize = 12.sp,
+                            color = LocalTextSecondary.current, fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
@@ -451,6 +475,7 @@ private fun PlayerScreen(
                                 activeUrls[i]
                             )
                         },
+                        playingIndex = activeUrls.indexOf(playingUrl),
                         finished = { i -> prefs.isFinished(videoKey, i) },
                         progress = { i -> prefs.getProgress(videoKey, i) },
                         onPick = { index = it }
@@ -525,11 +550,7 @@ private fun VideoArea(
                     // PlayerView 有两个同名重载，必须显式指定类型，否则重载解析歧义
                     setControllerVisibilityListener(
                         PlayerView.ControllerVisibilityListener { v: Int ->
-                            val visible = v == android.view.View.VISIBLE
-                            // 兜底：若按钮挂在 PlayerView 上则手动同步显隐
-                            findViewWithTag<android.view.View>(FS_BUTTON_TAG)?.visibility =
-                                if (visible) android.view.View.VISIBLE else android.view.View.GONE
-                            cb(visible)
+                            cb(v == android.view.View.VISIBLE)
                         }
                     )
                 }
@@ -542,18 +563,43 @@ private fun VideoArea(
 /** 控制条里全屏按钮的标记 */
 private const val FS_BUTTON_TAG = "yetv_fs_button"
 
-/** 当前全屏按钮实例（用于切换"全屏 / 退出全屏"文案） */
+/** 当前全屏按钮实例（用于切换「全屏 / 退出」文案） */
 private var fullscreenButtonRef: android.widget.TextView? = null
 
 /**
- * 把全屏按钮塞进播放器控制条里，和进度条、暂停、设置按钮同一层，
- * 随控制条一起显示/隐藏，不再是悬浮在上层的独立按钮。
- * 位置：底部控制行右侧，往左让开一格，避免压住设置按钮。
+ * 把全屏按钮放进**进度条所在的那个容器**，和进度条同属一层。
+ *
+ * 之前是加在 PlayerView 上（独立图层），会出现「进度条淡出、按钮还亮着」
+ * 这种显隐不同步。现在挂在同一个 ViewGroup 下，控制器收起时它会跟着
+ * 一起收起，动画完全一致。
+ *
+ * 位置：靠右，并向左让开一格，避免压住 ExoPlayer 自带的设置按钮。
  */
 private fun attachControlButton(playerView: PlayerView, onToggle: () -> Unit) {
     try {
         val ctx = playerView.context
-        val density = ctx.resources.displayMetrics.density
+        val res = ctx.resources
+        val pkg = ctx.packageName
+
+        // 优先：进度条的直接父容器（就是底部控制行 / 控制区）
+        val progressId = res.getIdentifier("exo_progress", "id", pkg)
+        val progress = if (progressId != 0) {
+            playerView.findViewById<android.view.View>(progressId)
+        } else null
+        var target = progress?.parent as? android.view.ViewGroup
+
+        // 退而求其次：整个控制器
+        if (target == null) {
+            val cid = res.getIdentifier("exo_controller", "id", pkg)
+            target = if (cid != 0) playerView.findViewById<android.view.ViewGroup>(cid) else null
+        }
+        // 最后兜底
+        if (target == null) target = playerView
+
+        val density = res.displayMetrics.density
+        val size = (38 * density).toInt()
+        val gap = (8 * density).toInt()
+
         val btn = android.widget.TextView(ctx).apply {
             tag = FS_BUTTON_TAG
             text = "全屏"
@@ -561,25 +607,53 @@ private fun attachControlButton(playerView: PlayerView, onToggle: () -> Unit) {
             textSize = 12f
             gravity = android.view.Gravity.CENTER
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(0x73000000.toInt())
-                cornerRadius = 20f * density
+                setColor(0x00000000)
+                cornerRadius = 19f * density
             }
             setOnClickListener { onToggle() }
         }
-        val size = (40 * density).toInt()
-        val lp = android.widget.FrameLayout.LayoutParams(
-            size, size,
-            android.view.Gravity.BOTTOM or android.view.Gravity.END
-        )
-        lp.rightMargin = (58 * density).toInt()
-        lp.bottomMargin = (42 * density).toInt()
 
-        val cid = ctx.resources.getIdentifier("exo_controller", "id", ctx.packageName)
-        val controller =
-            if (cid != 0) playerView.findViewById<android.view.ViewGroup>(cid) else null
-        if (controller != null) controller.addView(btn, lp) else playerView.addView(btn, lp)
+        // 容器类型不同，LayoutParams 也不能用错，否则位置会飘
+        val lp = if (target is android.widget.LinearLayout) {
+            android.widget.LinearLayout.LayoutParams(size, size).apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                marginStart = gap
+                marginEnd = gap
+            }
+        } else {
+            android.widget.FrameLayout.LayoutParams(
+                size, size,
+                android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+            ).apply {
+                rightMargin = (58 * density).toInt()
+            }
+        }
+        target.addView(btn, lp)
         fullscreenButtonRef = btn
     } catch (ignored: Exception) {
+    }
+}
+
+/** 开始加载时的步骤提示 + 转圈 */
+@Composable
+private fun LoadingHint(step: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(
+                color = LocalBrand.current,
+                modifier = Modifier.size(34.dp),
+                strokeWidth = 3.dp
+            )
+            Text(
+                step,
+                color = Color.White,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 5.dp)
+            )
+        }
     }
 }
 
@@ -631,7 +705,7 @@ private fun PlayerButton(
     Box(
         modifier = modifier
             .background(
-                if (enabled) SurfaceLight else Surface,
+                if (enabled) LocalSurfaceLight.current else LocalSurface.current,
                 RoundedCornerShape(10.dp)
             )
             .clickable(enabled = enabled) { onClick() }
@@ -640,7 +714,7 @@ private fun PlayerButton(
     ) {
         Text(
             text,
-            color = if (enabled) TextPrimary else TextSecondary,
+            color = if (enabled) LocalTextPrimary.current else LocalTextSecondary.current,
             fontSize = 13.sp
         )
     }

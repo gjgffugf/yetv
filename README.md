@@ -221,6 +221,50 @@ GET /api/config/custom_category 404
 首页海报点击从「等 2~5 秒才跳转」变为「立即进详情页」，
 详情框架（海报/标题/简介）先渲染，集数区域显示加载动画，源解析完再填充。
 
+
+## 二·十三、v1.0.2 交互与功能更新
+
+| # | 改动 |
+|---|---|
+| 1 | **移除接口诊断页**（已完成校准，不再需要） |
+| 2 | **视频源支持编辑 / 删除**：每个源卡片右侧有按钮，删除前弹确认框 |
+| 3 | 详情页加载动画改为圆形旋转 |
+| 4 | **全屏按钮移入进度条所在容器**：与进度条同层，控制器收起时一起收起，显隐完全一致 |
+| 5 | **应用内更新**：每次启动请求更新 JSON（GitHub raw + 多代理），有新版本弹窗；应用内下载 + 系统安装器安装，不依赖浏览器；`force=true` 时可强制更新 |
+| 6 | **深色 / 浅色模式切换**（我的页右上）：只切换背景/卡片/文字等**非彩色**，与主色（个性化）互不影响 |
+| 7 | **背景图即时生效**：去掉「启用」开关和「保存」按钮，选图即生效，暗化拖动实时可见；未设背景时随深浅模式变纯色 |
+| 8 | **当前播放集金色边框**：边框不压缩内部进度填充；切换源后需重新选集，且不打断当前播放 |
+| 9 | **播放加载提示**：显示「正在解析地址… / 正在缓冲…」等步骤 + 转圈 |
+| 10 | **登录页**：卡片垂直居中；顶部站点名打字机效果（打完停 1.5s → 删除 → 重打，带光标）；用户名上方居中粗体「登录」；输入法弹出布局不动（adjustNothing），背景图 Crop 不缩放 |
+| 11 | 内置默认背景图 `app/src/main/res/drawable-nodpi/bg_default.jpg`（可直接替换成你自己的图） |
+| 12 | 版本升至 **1.0.2**（versionCode 3） |
+
+### 应用内更新怎么配置
+
+1. 改 `ui/UpdateManager.kt` 顶部的 `OWNER / REPO / BRANCH`（默认 `yetvplus/yetvplus-app/main`）
+2. 仓库里放 `update.json`：
+
+```json
+{
+  "versionCode": 4,
+  "versionName": "1.0.3",
+  "apkUrl": "https://github.com/OWNER/REPO/releases/download/v1.0.3/app-release.apk",
+  "changelog": "修复若干问题",
+  "force": false
+}
+```
+
+3. 版本判断优先用 `versionCode`（整数比较最可靠），`versionCode` 为 0 时回退比较 `versionName`
+
+代理候选顺序：raw 直连 → ghproxy.net → gh-proxy.com → gh.llkk.cc → raw.gitmirror.com → jsDelivr，
+第一个返回合法 JSON 的就用它，全部失败则静默跳过（不打扰用户）。
+
+### 深浅模式说明
+
+`Bg / Surface / SurfaceLight / TextPrimary / TextSecondary` 已改为
+`Local*CompositionLocal`，随 `darkModeState` 实时切换；主色 `LocalBrand`
+由「个性化 → 软件默认色」独立控制，两者并存不冲突。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

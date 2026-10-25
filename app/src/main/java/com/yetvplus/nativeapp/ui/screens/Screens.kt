@@ -53,10 +53,10 @@ import com.yetvplus.nativeapp.YETVApp
 import com.yetvplus.nativeapp.data.DoubanItem
 import com.yetvplus.nativeapp.data.VideoItem
 import com.yetvplus.nativeapp.ui.theme.Brand
-import com.yetvplus.nativeapp.ui.theme.Surface
-import com.yetvplus.nativeapp.ui.theme.SurfaceLight
-import com.yetvplus.nativeapp.ui.theme.TextPrimary
-import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.LocalSurface
+import com.yetvplus.nativeapp.ui.theme.LocalSurfaceLight
+import com.yetvplus.nativeapp.ui.theme.LocalTextPrimary
+import com.yetvplus.nativeapp.ui.theme.LocalTextSecondary
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -287,15 +287,15 @@ fun SearchScreen(app: YETVApp, onOpen: (SearchGroup) -> Unit) {
                 onValueChange = { keyword = it; UiState.keyword = it },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                placeholder = { Text("搜索影片、剧集…", color = TextSecondary, fontSize = 14.sp) },
+                placeholder = { Text("搜索影片、剧集…", color = LocalTextSecondary.current, fontSize = 14.sp) },
                 shape = RoundedCornerShape(12.dp),
                 // 键盘回车直接搜索
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { run(keyword) }),
                 colors = TextFieldDefaults.outlinedTextFieldColors(
-                    containerColor = Surface,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
+                    containerColor = LocalSurface.current,
+                    focusedTextColor = LocalTextPrimary.current,
+                    unfocusedTextColor = LocalTextPrimary.current,
                     cursorColor = LocalBrand.current,
                     focusedBorderColor = LocalBrand.current,
                     unfocusedBorderColor = Color.Transparent
@@ -314,7 +314,7 @@ fun SearchScreen(app: YETVApp, onOpen: (SearchGroup) -> Unit) {
                     .padding(horizontal = 14.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("搜索历史", color = TextSecondary, fontSize = 12.sp,
+                Text("搜索历史", color = LocalTextSecondary.current, fontSize = 12.sp,
                     modifier = Modifier.weight(1f))
                 Text("清空", color = LocalBrand.current, fontSize = 12.sp,
                     modifier = Modifier.clickable {
@@ -331,11 +331,11 @@ fun SearchScreen(app: YETVApp, onOpen: (SearchGroup) -> Unit) {
                 items(history) { h ->
                     Box(
                         modifier = Modifier
-                            .background(SurfaceLight, RoundedCornerShape(14.dp))
+                            .background(LocalSurfaceLight.current, RoundedCornerShape(14.dp))
                             .clickable { run(h) }
                             .padding(horizontal = 12.dp, vertical = 7.dp)
                     ) {
-                        Text(h, color = TextPrimary, fontSize = 12.sp, maxLines = 1)
+                        Text(h, color = LocalTextPrimary.current, fontSize = 12.sp, maxLines = 1)
                     }
                 }
             }
@@ -388,21 +388,29 @@ fun MineScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("我的", color = TextPrimary, fontSize = 20.sp)
+        // 顶部「我的」+ 深浅模式切换
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("我的", color = LocalTextPrimary.current, fontSize = 20.sp)
+            Spacer(modifier = Modifier.weight(1f))
+            DarkModeToggle(app)
+        }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Surface),
+            colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
                     if (prefs.username.isEmpty()) "已登录" else "已登录：${prefs.username}",
-                    color = TextPrimary,
+                    color = LocalTextPrimary.current,
                     fontSize = 15.sp
                 )
                 if (prefs.role.isNotEmpty()) {
-                    Text("角色：${prefs.role}", color = TextSecondary, fontSize = 12.sp,
+                    Text("角色：${prefs.role}", color = LocalTextSecondary.current, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 4.dp))
                 }
                 Button(
@@ -424,12 +432,15 @@ fun MineScreen(
             Text(msg, color = Color(0xFFFFC46B), fontSize = 13.sp)
         }
 
+        // ---- 版本与更新 ----
+        UpdateCard()
+
         // ---- 本地观看记录 ----
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("观看记录（${records.size}）", color = TextPrimary, fontSize = 16.sp,
+            Text("观看记录（${records.size}）", color = LocalTextPrimary.current, fontSize = 16.sp,
                 modifier = Modifier.weight(1f))
             if (records.isNotEmpty()) {
                 Text("清空", color = LocalBrand.current, fontSize = 12.sp,
@@ -442,21 +453,21 @@ fun MineScreen(
 
         if (records.isEmpty()) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Surface),
+                colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("还没有观看记录", color = TextPrimary, fontSize = 14.sp)
+                    Text("还没有观看记录", color = LocalTextPrimary.current, fontSize = 14.sp)
                     Text(
                         "播放任意一集后会自动记录进度，数据只存在本机。",
-                        color = TextSecondary, fontSize = 12.sp
+                        color = LocalTextSecondary.current, fontSize = 12.sp
                     )
                 }
             }
         } else {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Surface),
+                colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -474,7 +485,7 @@ fun MineScreen(
                                     .width(46.dp)
                                     .height(64.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(SurfaceLight)
+                                    .background(LocalSurfaceLight.current)
                             ) {
                                 if (r.poster.isNotEmpty()) {
                                     SubcomposeAsyncImage(
@@ -493,15 +504,15 @@ fun MineScreen(
                                     .weight(1f)
                                     .padding(horizontal = 12.dp)
                             ) {
-                                Text(r.title.ifEmpty { "未命名" }, color = TextPrimary,
+                                Text(r.title.ifEmpty { "未命名" }, color = LocalTextPrimary.current,
                                     fontSize = 14.sp, maxLines = 2)
                                 Text(
                                     "看到第 ${r.episode + 1} 集",
-                                    color = TextSecondary, fontSize = 12.sp,
+                                    color = LocalTextSecondary.current, fontSize = 12.sp,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
-                            Text("删除", color = TextSecondary, fontSize = 11.sp,
+                            Text("删除", color = LocalTextSecondary.current, fontSize = 11.sp,
                                 modifier = Modifier.clickable {
                                     prefs.removeWatchRecord(r.key)
                                     records = prefs.watchRecords()
@@ -523,7 +534,7 @@ fun MineScreen(
 @Composable
 fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
     val prefs = app.prefs
-    var bgOn by remember { mutableStateOf(prefs.bgEnabled) }
+    var bgPath by remember { mutableStateOf(prefs.bgPath) }
     var dim by remember { mutableFloatStateOf(prefs.bgDim) }
     var keepOn by remember { mutableStateOf(prefs.keepScreenOn) }
     var merge by remember { mutableStateOf(prefs.mergeSearch) }
@@ -536,9 +547,9 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
         val file = copyToInternal(app.applicationContext, uri, "bg.jpg")
         if (file != null) {
             prefs.bgPath = file.absolutePath
-            prefs.bgEnabled = true
-            bgOn = true
-            tip = "背景图已选择，记得点「保存背景设置」"
+            // 选完立即生效（不再需要额外的开关和保存按钮）
+            bgPath = file.absolutePath
+            tip = "背景图已生效"
         } else {
             tip = "读取图片失败"
         }
@@ -555,14 +566,14 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
             modifier = Modifier.padding(bottom = 14.dp)
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.Close, contentDescription = "返回", tint = TextPrimary)
+                Icon(Icons.Default.Close, contentDescription = "返回", tint = LocalTextPrimary.current)
             }
-            Text("应用设置", color = TextPrimary, fontSize = 20.sp)
+            Text("应用设置", color = LocalTextPrimary.current, fontSize = 20.sp)
         }
 
         // ---- 个性化 ----
         SettingsCard("个性化") {
-            Text("软件默认色", color = TextPrimary, fontSize = 14.sp)
+            Text("软件默认色", color = LocalTextPrimary.current, fontSize = 14.sp)
             // 横向可滑动：色块多时一行放不下，避免点不到后面的颜色
             LazyRow(
                 modifier = Modifier
@@ -611,19 +622,21 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
             }
         }
 
-        // ---- 背景图 ----
+        // ---- 背景图：选了立即生效，暗化拖动即见效果，不需要保存按钮 ----
         SettingsCard("背景图") {
-            SwitchRow("启用自定义背景图", bgOn) {
-                bgOn = it
-                prefs.bgEnabled = it
+            if (bgPath.isEmpty()) {
+                Text(
+                    "未设置背景图，当前为纯色背景（随深色 / 浅色模式变化）",
+                    color = LocalTextSecondary.current,
+                    fontSize = 12.sp
+                )
             }
             ActionRow("从相册选择") { pickBg.launch("image/*") }
-            if (prefs.bgPath.isNotEmpty()) {
+            if (bgPath.isNotEmpty()) {
                 ActionRow("清除背景图") {
+                    bgPath = ""
                     prefs.bgPath = ""
-                    prefs.bgEnabled = false
-                    bgOn = false
-                    tip = "已清除背景图"
+                    tip = "已清除背景图，恢复纯色背景"
                 }
             }
             SliderRow(
@@ -631,15 +644,13 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                 valueText = "${(dim * 100).toInt()}%",
                 value = dim,
                 range = 0f..0.85f,
-                onValue = { dim = it },
+                // 拖动过程中就写入，用户能立刻看到效果
+                onValue = {
+                    dim = it
+                    prefs.bgDim = it
+                },
                 onDone = { }
             )
-            // 明确点保存才写入
-            ActionRow("保存背景设置") {
-                prefs.bgEnabled = bgOn
-                prefs.bgDim = dim
-                tip = "背景设置已保存"
-            }
         }
 
         // ---- 显示 ----
@@ -648,7 +659,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
             // 不能在 clickable 的 lambda 里调 LocalContext.current（那不是 @Composable 上下文）
             val activity = LocalContext.current as? android.app.Activity
             val supported = activity?.let { RefreshRate.supported(it) } ?: RefreshRate.OPTIONS
-            Text("刷新率", color = TextPrimary, fontSize = 14.sp)
+            Text("刷新率", color = LocalTextPrimary.current, fontSize = 14.sp)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -661,7 +672,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .background(
-                                if (on) LocalBrand.current else SurfaceLight,
+                                if (on) LocalBrand.current else LocalSurfaceLight.current,
                                 RoundedCornerShape(10.dp)
                             )
                             .clickable {
@@ -676,7 +687,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
                     ) {
                         Text(
                             if (hz == 0) "系统" else "${hz}Hz",
-                            color = if (on) Color.White else TextSecondary,
+                            color = if (on) Color.White else LocalTextSecondary.current,
                             fontSize = 12.sp
                         )
                     }
@@ -695,7 +706,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
         SettingsCard("缓存与记录") {
             Text(
                 "首页榜单本地缓存 24 小时，观看进度与记录仅存本机。",
-                color = TextSecondary, fontSize = 12.sp
+                color = LocalTextSecondary.current, fontSize = 12.sp
             )
             ActionRow("清除首页缓存") {
                 prefs.clearCache()
@@ -722,7 +733,7 @@ fun SettingsScreen(app: YETVApp, onBack: () -> Unit) {
 @Composable
 private fun SettingsCard(title: String, content: @Composable () -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Surface),
+        colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -732,7 +743,7 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(title, color = TextPrimary, fontSize = 15.sp)
+            Text(title, color = LocalTextPrimary.current, fontSize = 15.sp)
             content()
         }
     }
@@ -748,7 +759,7 @@ private fun SwitchRow(text: String, checked: Boolean, onChange: (Boolean) -> Uni
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text, color = TextPrimary, fontSize = 14.sp,
+            text, color = LocalTextPrimary.current, fontSize = 14.sp,
             modifier = Modifier.weight(1f).padding(end = 10.dp)
         )
         Switch(
@@ -789,7 +800,7 @@ private fun SliderRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, color = TextPrimary, fontSize = 14.sp)
+            Text(label, color = LocalTextPrimary.current, fontSize = 14.sp)
             Text(valueText, color = LocalBrand.current, fontSize = 13.sp)
         }
         Slider(
@@ -805,7 +816,7 @@ private fun SliderRow(
 @Composable
 private fun HintText(text: String) {
     Text(
-        text, color = TextSecondary, fontSize = 11.sp,
+        text, color = LocalTextSecondary.current, fontSize = 11.sp,
         lineHeight = 15.sp,
         modifier = Modifier.fillMaxWidth()
     )

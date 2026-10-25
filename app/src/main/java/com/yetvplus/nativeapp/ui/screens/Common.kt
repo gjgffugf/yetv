@@ -48,9 +48,9 @@ import com.yetvplus.nativeapp.YETVApp
 import com.yetvplus.nativeapp.data.DoubanItem
 import com.yetvplus.nativeapp.data.VideoItem
 import com.yetvplus.nativeapp.ui.theme.Brand
-import com.yetvplus.nativeapp.ui.theme.Surface
-import com.yetvplus.nativeapp.ui.theme.TextPrimary
-import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.LocalSurface
+import com.yetvplus.nativeapp.ui.theme.LocalTextPrimary
+import com.yetvplus.nativeapp.ui.theme.LocalTextSecondary
 import java.net.URLEncoder
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.foundation.lazy.LazyRow
@@ -60,7 +60,7 @@ import com.yetvplus.nativeapp.data.Episode
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import com.yetvplus.nativeapp.ui.theme.SurfaceLight
+import com.yetvplus.nativeapp.ui.theme.LocalSurfaceLight
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -69,6 +69,7 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.collect
 import com.yetvplus.nativeapp.data.SearchGroup
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.border
 
 
 
@@ -104,7 +105,7 @@ fun LoadingBox(text: String = "加载中…") {
             CircularProgressIndicator(color = LocalBrand.current)
             Text(
                 text,
-                color = TextSecondary,
+                color = LocalTextSecondary.current,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 10.dp)
             )
@@ -115,7 +116,7 @@ fun LoadingBox(text: String = "加载中…") {
 @Composable
 fun EmptyBox(text: String) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text, color = TextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
+        Text(text, color = LocalTextSecondary.current, fontSize = 13.sp, textAlign = TextAlign.Center)
     }
 }
 
@@ -126,7 +127,7 @@ fun PosterCard(item: VideoItem, badge: String = "") {
         PosterImage(url = item.poster, ratio = 0.72f, badge = badge)
         Text(
             item.title,
-            color = TextPrimary,
+            color = LocalTextPrimary.current,
             fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -138,7 +139,7 @@ fun PosterCard(item: VideoItem, badge: String = "") {
             item.sourceName.takeIf { it.isNotEmpty() }
         ).joinToString(" · ")
         if (sub.isNotEmpty()) {
-            Text(sub, color = TextSecondary, fontSize = 10.sp, maxLines = 1)
+            Text(sub, color = LocalTextSecondary.current, fontSize = 10.sp, maxLines = 1)
         }
     }
 }
@@ -167,14 +168,14 @@ fun DoubanCard(item: DoubanItem, onClick: () -> Unit) {
             PosterImage(url = item.poster, ratio = 0.72f, badge = item.rate)
             Text(
                 item.title,
-                color = TextPrimary,
+                color = LocalTextPrimary.current,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 5.dp)
             )
             if (item.year.isNotEmpty()) {
-                Text(item.year, color = TextSecondary, fontSize = 10.sp)
+                Text(item.year, color = LocalTextSecondary.current, fontSize = 10.sp)
             }
         }
     }
@@ -201,12 +202,12 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
             .fillMaxWidth()
             .aspectRatio(ratio)
             .clip(RoundedCornerShape(10.dp))
-            .background(Surface)
+            .background(LocalSurface.current)
     ) {
         if (url.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().background(
-                    Brush.linearGradient(listOf(Surface, MaterialTheme.colorScheme.surfaceVariant))
+                    Brush.linearGradient(listOf(LocalSurface.current, MaterialTheme.colorScheme.surfaceVariant))
                 )
             )
         } else {
@@ -221,7 +222,7 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
                 loading = {
                     Box(
                         modifier = Modifier.fillMaxSize().background(
-                            Brush.linearGradient(listOf(Surface, SurfaceLight))
+                            Brush.linearGradient(listOf(LocalSurface.current, LocalSurfaceLight.current))
                         )
                     )
                 },
@@ -233,7 +234,7 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
                     Box(
                         modifier = Modifier.fillMaxSize().background(
                             Brush.linearGradient(
-                                listOf(Surface, MaterialTheme.colorScheme.surfaceVariant)
+                                listOf(LocalSurface.current, MaterialTheme.colorScheme.surfaceVariant)
                             )
                         )
                     )
@@ -340,14 +341,14 @@ fun ChipTabs(
                 modifier = Modifier
                     .height(30.dp)
                     .clip(RoundedCornerShape(15.dp))
-                    .background(if (on) LocalBrand.current else Surface)
+                    .background(if (on) LocalBrand.current else LocalSurface.current)
                     .clickable { onSelect(i) }
                     .padding(horizontal = 13.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     items[i],
-                    color = if (on) Color.White else TextSecondary,
+                    color = if (on) Color.White else LocalTextSecondary.current,
                     fontSize = 12.sp
                 )
             }
@@ -378,11 +379,16 @@ private fun episodePages(total: Int): List<IntRange> {
  * - 集数按钮：看完=实色，看过没看完=从左到右按进度填充，未看=默认灰
  */
 @Composable
+/** 正在播放的那一集用金色边框标记 */
+private val EpisodeBorderGold = Color(0xFFD9A441)
+
 fun EpisodeSection(
     episodes: List<Episode>,
     finished: (Int) -> Boolean,
     progress: (Int) -> Float,
-    onPick: (Int) -> Unit
+    onPick: (Int) -> Unit,
+    /** 正在播放的集数下标；-1 表示没有（例如刚切换了源、还没选集） */
+    playingIndex: Int = -1
 ) {
     val total = episodes.size
     if (total == 0) return
@@ -405,7 +411,7 @@ fun EpisodeSection(
         ) {
             Text(
                 "选集（$total）",
-                color = TextPrimary,
+                color = LocalTextPrimary.current,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(end = 8.dp)
             )
@@ -419,11 +425,11 @@ fun EpisodeSection(
                         val label = "${r.first + 1}-${r.last + 1}集"
                         val on = i == page
                         val bg by animateColorAsState(
-                            targetValue = if (on) LocalBrand.current else SurfaceLight,
+                            targetValue = if (on) LocalBrand.current else LocalSurfaceLight.current,
                             animationSpec = tween(220), label = "segBg"
                         )
                         val fg by animateColorAsState(
-                            targetValue = if (on) Color.White else TextSecondary,
+                            targetValue = if (on) Color.White else LocalTextSecondary.current,
                             animationSpec = tween(220), label = "segFg"
                         )
                         Box(
@@ -442,7 +448,7 @@ fun EpisodeSection(
 
             // 正序 / 倒序：切换时文字淡入淡出
             val orderBg by animateColorAsState(
-                targetValue = SurfaceLight, animationSpec = tween(220), label = "orderBg"
+                targetValue = LocalSurfaceLight.current, animationSpec = tween(220), label = "orderBg"
             )
             Box(
                 modifier = Modifier
@@ -458,7 +464,7 @@ fun EpisodeSection(
                 ) { isAsc ->
                     Text(
                         if (isAsc) "正序" else "倒序",
-                        color = TextPrimary,
+                        color = LocalTextPrimary.current,
                         fontSize = 11.sp
                     )
                 }
@@ -485,12 +491,20 @@ fun EpisodeSection(
             items(order) { i ->
                 val done = finished(i)
                 val p = if (done) 1f else progress(i).coerceIn(0f, 1f)
+                val isPlaying = i == playingIndex
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(38.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (done) LocalBrand.current else SurfaceLight)
+                        .background(if (done) LocalBrand.current else LocalSurfaceLight.current)
+                        // 金色边框画在内容之后、外框之内，
+                        // 用的是 border() 而不是 padding，不会压缩内部的进度填充
+                        .then(
+                            if (isPlaying) {
+                                Modifier.border(2.dp, EpisodeBorderGold, RoundedCornerShape(8.dp))
+                            } else Modifier
+                        )
                         .clickable { onPick(i) }
                 ) {
                     if (!done && p > 0f) {
@@ -504,7 +518,7 @@ fun EpisodeSection(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             episodes.getOrNull(i)?.name ?: "第${i + 1}集",
-                            color = if (done || p > 0f) Color.White else TextPrimary,
+                            color = if (done || p > 0f) Color.White else LocalTextPrimary.current,
                             fontSize = 12.sp,
                             maxLines = 1
                         )
@@ -532,7 +546,7 @@ fun SourceSwitchBar(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "播放源（${variants.size}）",
-            color = TextPrimary,
+            color = LocalTextPrimary.current,
             fontSize = 14.sp,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
         )
@@ -545,12 +559,12 @@ fun SourceSwitchBar(
             itemsIndexed(variants) { i, v ->
                 val on = i == current
                 val bg by animateColorAsState(
-                    targetValue = if (on) LocalBrand.current else SurfaceLight,
+                    targetValue = if (on) LocalBrand.current else LocalSurfaceLight.current,
                     animationSpec = tween(200),
                     label = "srcBg"
                 )
                 val fg by animateColorAsState(
-                    targetValue = if (on) Color.White else TextPrimary,
+                    targetValue = if (on) Color.White else LocalTextPrimary.current,
                     animationSpec = tween(200),
                     label = "srcFg"
                 )
@@ -571,7 +585,7 @@ fun SourceSwitchBar(
                             modifier = Modifier
                                 .padding(start = 6.dp)
                                 .background(
-                                    if (on) Color.White.copy(alpha = 0.22f) else Surface,
+                                    if (on) Color.White.copy(alpha = 0.22f) else LocalSurface.current,
                                     RoundedCornerShape(8.dp)
                                 )
                                 .padding(horizontal = 5.dp, vertical = 1.dp)

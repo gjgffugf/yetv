@@ -40,9 +40,9 @@ import com.yetvplus.nativeapp.data.UserItem
 import com.yetvplus.nativeapp.ui.screens.ChipTabs
 import com.yetvplus.nativeapp.ui.screens.LoadingBox
 import com.yetvplus.nativeapp.ui.theme.Brand
-import com.yetvplus.nativeapp.ui.theme.Surface
-import com.yetvplus.nativeapp.ui.theme.TextPrimary
-import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.LocalSurface
+import com.yetvplus.nativeapp.ui.theme.LocalTextPrimary
+import com.yetvplus.nativeapp.ui.theme.LocalTextSecondary
 import kotlinx.coroutines.launch
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.animation.AnimatedContent
@@ -52,14 +52,16 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
-import com.yetvplus.nativeapp.data.RawResponse
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 
-private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级", "诊断")
+private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级")
 
 @Composable
 fun AdminScreen(app: YETVApp) {
@@ -69,7 +71,7 @@ fun AdminScreen(app: YETVApp) {
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
             "管理面板",
-            color = TextPrimary,
+            color = LocalTextPrimary.current,
             fontSize = 20.sp,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
         )
@@ -78,7 +80,7 @@ fun AdminScreen(app: YETVApp) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "请先在登录页用站长账号登录\n登录后再回到本页操作",
-                    color = TextSecondary, fontSize = 14.sp,
+                    color = LocalTextSecondary.current, fontSize = 14.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
@@ -90,7 +92,7 @@ fun AdminScreen(app: YETVApp) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "当前账号角色为「$role」，无管理权限\n请用站长（owner）或管理员账号登录",
-                    color = TextSecondary, fontSize = 14.sp,
+                    color = LocalTextSecondary.current, fontSize = 14.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
@@ -114,7 +116,6 @@ fun AdminScreen(app: YETVApp) {
                 2 -> CategoryTab(app)
                 3 -> UserTab(app)
                 4 -> AdvancedTab(app)
-                5 -> DiagnoseTab(app)
             }
         }
     }
@@ -192,6 +193,10 @@ private fun SourceTab(app: YETVApp) {
     var detail by remember { mutableStateOf("") }
     var tip by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
+    // 正在编辑的源下标；null 表示新增模式
+    var editingIndex by remember { mutableIntStateOf(-1) }
+    // 待删除的源下标；非负时弹确认框
+    var pendingDelete by remember { mutableIntStateOf(-1) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -204,6 +209,35 @@ private fun SourceTab(app: YETVApp) {
 
     if (loading) { LoadingBox(); return }
 
+    // 删除确认
+    if (pendingDelete >= 0) {
+        val target = list.getOrNull(pendingDelete)
+        ConfirmDialog(
+            title = "删除视频源",
+            message = "确定要删除「${target?.name?.ifEmpty { target.key } ?: ""}」吗？此操作不可撤销。",
+            onConfirm = {
+                val t = list.getOrNull(pendingDelete)
+                pendingDelete = -1
+                if (t != null) {
+                    scope.launch {
+                        val payload = JsonObject().apply {
+                            addProperty("key", t.key)
+                            addProperty("deleted", true)
+                        }
+                        val err = runCatching { app.repo.saveSource(payload) }
+                            .getOrElse { it.message ?: "删除失败" }
+                        if (err.isEmpty()) {
+                            list.remove(t)
+                            if (editingIndex == list.size) editingIndex = -1
+                            tip = "已删除"
+                        } else tip = err
+                    }
+                }
+            },
+            onDismiss = { pendingDelete = -1 }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -211,21 +245,64 @@ private fun SourceTab(app: YETVApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("已配置 ${list.size} 个视频源", color = TextPrimary, fontSize = 14.sp)
-        list.forEach { s ->
+        Text("已配置 ${list.size} 个视频源", color = LocalTextPrimary.current, fontSize = 14.sp)
+        list.forEachIndexed { idx, s ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = Surface),
+                colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(s.name.ifEmpty { s.key }, color = TextPrimary, fontSize = 14.sp)
-                    Text(s.api, color = TextSecondary, fontSize = 11.sp, maxLines = 2)
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            s.name.ifEmpty { s.key },
+                            color = LocalTextPrimary.current,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            s.api,
+                            color = LocalTextSecondary.current,
+                            fontSize = 11.sp,
+                            maxLines = 2
+                        )
+                    }
+                    // 右侧：编辑 / 删除
+                    Text(
+                        "编辑",
+                        color = LocalBrand.current,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .clickable {
+                                editingIndex = idx
+                                key = s.key
+                                name = s.name
+                                api = s.api
+                                detail = s.detail
+                                tip = "正在编辑「${s.name.ifEmpty { s.key }}」，改完点保存"
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    )
+                    Text(
+                        "删除",
+                        color = Color(0xFFE5484D),
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clickable { pendingDelete = idx }
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    )
                 }
             }
         }
 
-        Text("添加视频源", color = TextPrimary, fontSize = 14.sp)
+        Text(
+            if (editingIndex >= 0) "编辑视频源" else "添加视频源",
+            color = LocalTextPrimary.current,
+            fontSize = 14.sp
+        )
         OutlinedTextField(value = key, onValueChange = { key = it },
             label = { Text("Key（小写字母/数字）", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = name, onValueChange = { name = it },
@@ -247,14 +324,37 @@ private fun SourceTab(app: YETVApp) {
                     val err = runCatching { app.repo.saveSource(payload) }
                         .getOrElse { it.message ?: "保存失败" }
                     if (err.isEmpty()) {
-                        list.add(SourceItem(key.trim(), name.trim(), api.trim(), detail.trim()))
+                        val item = SourceItem(key.trim(), name.trim(), api.trim(), detail.trim())
+                        if (editingIndex >= 0 && editingIndex < list.size) {
+                            list[editingIndex] = item
+                            tip = "已保存修改"
+                        } else {
+                            list.add(item)
+                            tip = "已保存"
+                        }
+                        editingIndex = -1
                         key = ""; name = ""; api = ""; detail = ""
-                        tip = "已保存"
                     } else tip = err
                 }
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("保存视频源") }
+        ) { Text(if (editingIndex >= 0) "保存修改" else "保存视频源") }
+
+        if (editingIndex >= 0) {
+            Text(
+                "取消编辑",
+                color = LocalTextSecondary.current,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clickable {
+                        editingIndex = -1
+                        key = ""; name = ""; api = ""; detail = ""
+                        tip = ""
+                    }
+                    .padding(vertical = 6.dp)
+            )
+        }
 
         if (tip.isNotEmpty()) Text(tip, color = Color(0xFFFFC46B), fontSize = 13.sp)
     }
@@ -277,12 +377,12 @@ private fun CategoryTab(app: YETVApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("添加自定义分类", color = TextPrimary, fontSize = 14.sp)
+        Text("添加自定义分类", color = LocalTextPrimary.current, fontSize = 14.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { type = "movie" }) { Text("电影") }
             Button(onClick = { type = "tv" }) { Text("剧集") }
         }
-        Text("当前类型：$type", color = TextSecondary, fontSize = 12.sp)
+        Text("当前类型：$type", color = LocalTextSecondary.current, fontSize = 12.sp)
         OutlinedTextField(value = name, onValueChange = { name = it },
             label = { Text("显示名称", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = query, onValueChange = { query = it },
@@ -338,16 +438,16 @@ private fun UserTab(app: YETVApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("用户 ${users.size} 个", color = TextPrimary, fontSize = 14.sp)
+        Text("用户 ${users.size} 个", color = LocalTextPrimary.current, fontSize = 14.sp)
         users.forEach { item ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = Surface),
+                colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "${item.username}（${item.role}）${if (item.banned) " · 已封禁" else ""}",
-                    color = TextPrimary, fontSize = 13.sp,
+                    color = LocalTextPrimary.current, fontSize = 13.sp,
                     modifier = Modifier.padding(12.dp)
                 )
             }
@@ -403,7 +503,7 @@ private fun AdvancedTab(app: YETVApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("配置文件（config.json）", color = TextPrimary, fontSize = 14.sp)
+        Text("配置文件（config.json）", color = LocalTextPrimary.current, fontSize = 14.sp)
         OutlinedTextField(
             value = json, onValueChange = { json = it },
             label = { Text("粘贴完整 JSON 配置", fontSize = 12.sp) },
@@ -421,7 +521,7 @@ private fun AdvancedTab(app: YETVApp) {
             modifier = Modifier.fillMaxWidth()
         ) { Text("提交配置文件") }
 
-        Text("配置订阅", color = TextPrimary, fontSize = 14.sp)
+        Text("配置订阅", color = LocalTextPrimary.current, fontSize = 14.sp)
         OutlinedTextField(value = subUrl, onValueChange = { subUrl = it },
             label = { Text("订阅地址", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
         SwitchRow2("自动更新", autoUpdate) { autoUpdate = it }
@@ -450,7 +550,7 @@ private fun SwitchRow2(text: String, checked: Boolean, onChange: (Boolean) -> Un
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text, color = TextPrimary, fontSize = 14.sp)
+        Text(text, color = LocalTextPrimary.current, fontSize = 14.sp)
         Switch(
             checked = checked,
             onCheckedChange = onChange,
@@ -462,115 +562,67 @@ private fun SwitchRow2(text: String, checked: Boolean, onChange: (Boolean) -> Un
     }
 }
 
-// ---------------- 接口诊断 ----------------
+// ---------------- 通用确认弹窗 ----------------
 
-/**
- * 接口诊断：逐个请求关键接口，把状态码、耗时、原始响应文本直接显示出来。
- *
- * 用途：抓不到包时，用它一次性看清"到底哪个接口通、返回什么结构"，
- * 比猜字段可靠。响应可点击复制 / 分享出去。
- */
+/** 危险操作前的确认弹窗（删除视频源等） */
 @Composable
-private fun DiagnoseTab(app: YETVApp) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var running by remember { mutableStateOf(false) }
-    val results = remember { mutableStateListOf<RawResponse>() }
-
-    val paths = listOf(
-        "/api/admin/config",
-        "/api/server-config",
-        "/api/config/sources",
-        "/api/config/custom_category"
-    )
-
-    fun run() {
-        scope.launch {
-            running = true
-            results.clear()
-            for (p in paths) {
-                val r = withContext(Dispatchers.IO) { app.api.getRaw(p) }
-                results.add(r)
-            }
-            running = false
-        }
-    }
-
-    LaunchedEffect(Unit) { run() }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("接口诊断", color = TextPrimary, fontSize = 17.sp)
-        Text(
-            "下面列出各接口的真实状态码与原始响应。点「复制」可把内容发给开发者校准字段。",
-            color = TextSecondary, fontSize = 12.sp
-        )
-        Button(
-            onClick = { run() },
-            enabled = !running,
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (running) "请求中…" else "重新诊断") }
-
-        results.forEach { r ->
-            val okColor = if (r.ok) Color(0xFF4CAF50) else Color(0xFFE5484D)
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Surface),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .background(okColor, RoundedCornerShape(6.dp))
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                if (r.error) "ERR" else r.code.toString(),
-                                color = Color.White, fontSize = 11.sp
+private fun ConfirmDialog(
+    title: String,
+    message: String,
+    confirmText: String = "确定删除",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(18.dp),
+            color = LocalSurface.current,
+            tonalElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    title,
+                    color = LocalTextPrimary.current,
+                    fontSize = 17.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    message,
+                    color = LocalTextSecondary.current,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        Button(
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = LocalSurfaceLight.current
                             )
+                        ) {
+                            Text("取消", color = LocalTextPrimary.current, fontSize = 13.sp)
                         }
-                        Text(
-                            " ${r.ms}ms",
-                            color = TextSecondary, fontSize = 11.sp,
-                            modifier = Modifier.padding(start = 6.dp)
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        Text(
-                            "复制",
-                            color = LocalBrand.current, fontSize = 12.sp,
-                            modifier = Modifier.clickable {
-                                val cm = context.getSystemService(
-                                    android.content.Context.CLIPBOARD_SERVICE
-                                ) as? android.content.ClipboardManager
-                                cm?.setPrimaryClip(
-                                    android.content.ClipData.newPlainText(
-                                        "resp", "URL: ${r.url}\nCODE: ${r.code}\n${r.body}"
-                                    )
-                                )
-                                android.widget.Toast.makeText(
-                                    context, "已复制", android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        )
                     }
-                    Text(
-                        r.url.substringAfter("/api"),
-                        color = TextPrimary, fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
-                    // 原始响应：截断显示，避免超长
-                    val shown = if (r.body.length > 600) r.body.take(600) + "…（已截断）" else r.body
-                    Text(
-                        shown.ifEmpty { "（空响应体）" },
-                        color = TextSecondary, fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        Button(
+                            onClick = {
+                                onConfirm()
+                                onDismiss()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFE5484D)
+                            )
+                        ) { Text(confirmText, fontSize = 13.sp) }
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 package com.yetvplus.nativeapp.ui
 
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import com.yetvplus.nativeapp.data.VideoItem
 import com.yetvplus.nativeapp.data.SearchGroup
 
@@ -9,6 +10,15 @@ import com.yetvplus.nativeapp.data.SearchGroup
  * 0 表示用默认 Brand。
  */
 val themeArgbState = mutableIntStateOf(0)
+
+/** 深色模式。放在可观察状态里，切换后界面立即重组。 */
+val darkModeState = mutableStateOf(true)
+
+/** 待安装的更新；非空时弹出更新提示 */
+val pendingUpdate = mutableStateOf<com.yetvplus.nativeapp.ui.UpdateManager.UpdateInfo?>(null)
+
+/** 本次启动是否已经检查过更新（避免重复弹窗） */
+var updateChecked: Boolean = false
 
 /**
  * 跨页面保留的界面状态。

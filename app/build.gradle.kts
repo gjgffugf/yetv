@@ -17,8 +17,8 @@ android {
         applicationId = "com.yetvplus.nativeapp"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.0.2"
     }
 
     signingConfigs {
@@ -73,6 +73,8 @@ android {
 
     buildFeatures {
         compose = true
+        // 应用内更新需要读 BuildConfig.VERSION_CODE / VERSION_NAME
+        buildConfig = true
     }
 
     composeOptions {

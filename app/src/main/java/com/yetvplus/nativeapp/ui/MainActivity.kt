@@ -37,9 +37,9 @@ import com.yetvplus.nativeapp.ui.screens.LoginScreen
 import com.yetvplus.nativeapp.ui.screens.MineScreen
 import com.yetvplus.nativeapp.ui.screens.SearchScreen
 import com.yetvplus.nativeapp.ui.screens.SettingsScreen
-import com.yetvplus.nativeapp.ui.theme.Bg
+import com.yetvplus.nativeapp.ui.theme.LocalBg
 import com.yetvplus.nativeapp.ui.theme.Brand
-import com.yetvplus.nativeapp.ui.theme.TextSecondary
+import com.yetvplus.nativeapp.ui.theme.LocalTextSecondary
 import com.yetvplus.nativeapp.ui.theme.YETVTheme
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import androidx.compose.animation.fadeIn
@@ -82,6 +82,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.yetvplus.nativeapp.data.DoubanItem
+import com.yetvplus.nativeapp.ui.UpdateManager
+import com.yetvplus.nativeapp.ui.pendingUpdate
+import com.yetvplus.nativeapp.ui.screens.UpdateDialog
+import com.yetvplus.nativeapp.ui.UiState
+import androidx.compose.runtime.LaunchedEffect
 
 object Route {
     const val LOGIN = "login"
@@ -119,7 +124,8 @@ class MainActivity : ComponentActivity() {
             // 观察可变的主题色状态，设置页一改立刻生效，不用重启
             val saved = themeArgbState.intValue
             val brand = if (saved == 0) Brand else Color(saved)
-            YETVTheme(brandColor = brand) { AppRoot() }
+            val dark = darkModeState.value
+            YETVTheme(brandColor = brand, dark = dark) { AppRoot() }
         }
     }
 }
@@ -142,10 +148,24 @@ private fun AppRoot() {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as YETVApp
     val navController = rememberNavController()
 
-    Surface(modifier = Modifier.fillMaxSize(), color = Bg) {
+    // 每次进软件自动检查一次更新
+    LaunchedEffect(Unit) {
+        if (!UiState.updateChecked) {
+            UiState.updateChecked = true
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val info = UpdateManager.check()
+                if (info != null && info.isNewer()) {
+                    pendingUpdate.value = info
+                }
+            }
+        }
+    }
+
+    Surface(modifier = Modifier.fillMaxSize(), color = LocalBg.current) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // 自定义背景图（设置页开启后生效）
-            if (app.prefs.bgEnabled && app.prefs.bgPath.isNotEmpty()) {
+            // 背景图：选了就生效（不再需要开关）。
+            // 没配置时保持纯色，随深色/浅色模式一起变。
+            if (app.prefs.bgPath.isNotEmpty()) {
                 AppBackground(app.prefs.bgPath, app.prefs.bgDim)
             }
 
@@ -168,6 +188,7 @@ private fun AppRoot() {
                         }
                     }
                 }
+
             ) { padding ->
                 NavHost(
                     navController = navController,
@@ -249,6 +270,14 @@ private fun AppRoot() {
                     }
                     composable(Route.SETTINGS) {
                         SettingsScreen(app) { navController.popBackStack() }
+                    }
+                }
+
+                // 更新提示（全局，不依赖当前页面）
+                val up = pendingUpdate.value
+                if (up != null) {
+                    UpdateDialog(info = up) {
+                        pendingUpdate.value = null
                     }
                 }
             }
@@ -410,7 +439,7 @@ private fun GlassDock(
                         label = "dockIcon"
                     )
                     val tint by animateColorAsState(
-                        targetValue = if (selected) brand else TextSecondary,
+                        targetValue = if (selected) brand else LocalTextSecondary.current,
                         label = "dockTint"
                     )
                     Column(

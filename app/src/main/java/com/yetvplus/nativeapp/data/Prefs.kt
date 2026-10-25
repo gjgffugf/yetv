@@ -205,6 +205,16 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("merge_search", true)
         set(value) = sp.edit().putBoolean("merge_search", value).apply()
 
+    /** 深色模式；true 深色，false 浅色。只影响非品牌色（背景/卡片/文字） */
+    var darkMode: Boolean
+        get() = sp.getBoolean("dark_mode", true)
+        set(value) = sp.edit().putBoolean("dark_mode", value).apply()
+
+    /** 背景暗化程度 0~1 */
+    var bgDim: Float
+        get() = sp.getFloat("bg_dim", 0.55f)
+        set(value) = sp.edit().putFloat("bg_dim", value).apply()
+
     /** 目标刷新率（Hz）；0 表示跟随系统 */
     var refreshRate: Int
         get() = sp.getInt("refresh_rate", 0)
@@ -242,6 +252,7 @@ class Prefs(context: Context) {
 
     // ---------- 显示 ----------
 
+    /** 已废弃：背景不再需要开关，选了图就生效。保留仅为兼容旧数据。 */
     var bgEnabled: Boolean
         get() = sp.getBoolean("bg_enabled", false)
         set(value) = sp.edit().putBoolean("bg_enabled", value).apply()
