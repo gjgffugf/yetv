@@ -7,6 +7,10 @@ android {
     namespace = "com.yetvplus.app"
     compileSdk = 34
 
+    // 云端打包时传入 -PMTV_STORE_FILE=xxx.jks 即启用正式签名，否则回退 debug 签名
+    val customStoreFile = project.findProperty("MTV_STORE_FILE") as String?
+    val useCustomSigning = !customStoreFile.isNullOrBlank()
+
     defaultConfig {
         applicationId = "com.yetvplus.app"
         minSdk = 23
@@ -18,9 +22,8 @@ android {
     signingConfigs {
         // 本地/云端可选签名：传入 -PMTV_STORE_FILE=xxx.jks 即启用
         create("release") {
-            val sf = project.findProperty("MTV_STORE_FILE") as String?
-            if (!sf.isNullOrBlank()) {
-                storeFile = file(sf)
+            if (useCustomSigning) {
+                storeFile = file(customStoreFile!!)
                 storePassword = (project.findProperty("MTV_STORE_PASSWORD") as String?) ?: ""
                 keyAlias = (project.findProperty("MTV_KEY_ALIAS") as String?) ?: ""
                 keyPassword = (project.findProperty("MTV_KEY_PASSWORD") as String?) ?: ""
@@ -35,11 +38,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig =
-                if (signingConfigs.getByName("release").storeFile != null)
-                    signingConfigs.getByName("release")
-                else
-                    signingConfigs.getByName("debug")
+            signingConfig = if (useCustomSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         getByName("debug") {
             applicationIdSuffix = ".debug"

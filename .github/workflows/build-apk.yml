@@ -13,6 +13,11 @@ jobs:
     name: 编译 APK
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -23,13 +28,47 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: 配置 Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 接受 Android SDK 许可（非交互）
+        run: |
+          set -e
+          SDK="$ANDROID_HOME"
+          mkdir -p "$SDK/licenses"
+
+          # 预写许可哈希，避免 sdkmanager 交互式提问
+          printf '%s\n' \
+            "24333f8a63b6825ea9c5514f83c2829b004d1fee" \
+            "8933bad161af4178b1185d1a37fbf41ea5269c55" \
+            "d975f751698a77b662f1254ddbeed3901e976f5a" \
+            > "$SDK/licenses/android-sdk-license"
+          printf '%s\n' "84831b9409646a918e30573bab4c9c91346d8abd" \
+            > "$SDK/licenses/android-sdk-preview-license"
+          printf '%s\n' "601085b94cd77f0b54ff86406957099beebe8c7" \
+            > "$SDK/licenses/android-googletv-license"
+          printf '%s\n' "33b6a2b64607f11b759f320ef9dff4ae5c47d97b" \
+            > "$SDK/licenses/google-gdk-license"
+          printf '%s\n' "e9acab5b5fbb560a72cfaecce8946896ff6aab9d" \
+            > "$SDK/licenses/intel-android-extra-license"
+          printf '%s\n' "859f317696f67ef1079c5fc9a9cd5e8ee7c5e5a0" \
+            > "$SDK/licenses/android-sdk-arm-dbt-license"
+
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SM" ] || SM="$SDK/cmdline-tools/16.0/bin/sdkmanager"
+          [ -x "$SM" ] || SM="$(command -v sdkmanager || true)"
+          if [ -z "$SM" ]; then echo "!! 找不到 sdkmanager"; exit 1; fi
+          echo "sdkmanager = $SM"
+
+          yes 2>/dev/null | timeout 300 "$SM" --licenses > /dev/null 2>&1 || true
 
       - name: 安装 SDK 组件
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
+          set -e
+          SDK="$ANDROID_HOME"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SM" ] || SM="$SDK/cmdline-tools/16.0/bin/sdkmanager"
+          [ -x "$SM" ] || SM="$(command -v sdkmanager)"
+          timeout 900 "$SM" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "--- 已安装组件 ---"
+          "$SM" --list_installed
 
       - name: 缓存 Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -44,10 +83,13 @@ jobs:
             -keypass yetvplus2026 \
             -dname "CN=YETVPlus, OU=App, O=YETVPlus, L=Unknown, ST=Unknown, C=CN"
 
-      - name: 授予 gradlew 执行权限
-        run: chmod +x ./gradlew
+      - name: 编译 Debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: 编译 Release APK
+      - name: 编译 Release APK（签名失败不影响 Debug 产物）
+        continue-on-error: true
         run: |
           ./gradlew assembleRelease --no-daemon --stacktrace \
             -PMTV_STORE_FILE=../release.jks \
@@ -55,15 +97,19 @@ jobs:
             -PMTV_KEY_ALIAS=yetvplus \
             -PMTV_KEY_PASSWORD=yetvplus2026
 
-      - name: 编译 Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: 整理产物
+        if: always()
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/ 2>/dev/null || true
+          cp app/build/outputs/apk/release/app-release.apk out/ 2>/dev/null || true
+          ls -lh out/
 
       - name: 上传 APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: YETVPlus-APK
-          path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/debug/app-debug.apk
+          path: out/*.apk
           if-no-files-found: warn
           retention-days: 30
