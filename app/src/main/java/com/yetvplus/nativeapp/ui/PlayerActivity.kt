@@ -135,25 +135,11 @@ class PlayerActivity : ComponentActivity() {
                     poster = poster,
                     videoKey = videoKey,
                     onClose = { finish() },
-                    onExternal = { url -> openExternal(url) }
                 )
             }
         }
     }
 
-    private fun openExternal(url: String) {
-        if (url.isBlank()) return
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                setDataAndType(Uri.parse(url), "video/*")
-            })
-        } catch (e: Exception) {
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            } catch (ignored: Exception) {
-            }
-        }
-    }
 }
 
 @Composable
@@ -168,7 +154,6 @@ private fun PlayerScreen(
     videoKey: String,
     variants: List<VideoItem> = emptyList(),
     onClose: () -> Unit,
-    onExternal: (String) -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -199,7 +184,8 @@ private fun PlayerScreen(
     var error by remember { mutableStateOf("") }
     var fullscreen by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
-    var interaction by remember { mutableLongStateOf(0L) }
+    // 初值即当前时间：进页面就开始自动收起倒计时
+    var interaction by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var speeding by remember { mutableStateOf(false) }
     var savedSpeed by remember { mutableFloatStateOf(1f) }
     var loadStep by remember { mutableStateOf("准备中…") }
@@ -244,7 +230,6 @@ private fun PlayerScreen(
 
     // 一段时间没操作就自动收起控件
     LaunchedEffect(interaction) {
-        if (interaction == 0L) return@LaunchedEffect
         delay(CONTROLS_TIMEOUT_MS)
         controlsVisible = false
     }
@@ -377,12 +362,11 @@ private fun PlayerScreen(
                     episodeName = activeNames.getOrNull(if (playingIndex >= 0) playingIndex else index) ?: "",
                     showTopBar = true,
                     onClose = onClose,
-                    onExternal = { onExternal(playUrl) },
                     onToggleFullscreen = { toggleFullscreen.value(); showControls() }
                 )
-                if (speeding) FastForwardHint()
-                if (loading && error.isEmpty()) LoadingHint(loadStep)
-                if (error.isNotEmpty()) ErrorOverlay(error)
+                if (speeding) FastForwardHint(Modifier.matchParentSize())
+                if (loading && error.isEmpty()) LoadingHint(loadStep, Modifier.matchParentSize())
+                if (error.isNotEmpty()) ErrorOverlay(error, Modifier.matchParentSize())
             }
         } else {
             // ---- 小窗（默认）：顶部 16:9，下方是集数 ----
@@ -405,7 +389,11 @@ private fun PlayerScreen(
                                 onStart = { setSpeed(3f); speeding = true },
                                 onEnd = { setSpeed(savedSpeed); speeding = false }
                             )
-                            .tapToToggleControls { showControls(); controlsVisible = !controlsVisible }
+                            .tapToToggleControls {
+                                // 注意：不能写成 showControls(); controlsVisible = !controlsVisible
+                                // 那样先置 true 再取反，结果永远是 false，点一下控件就再也出不来。
+                                if (controlsVisible) controlsVisible = false else showControls()
+                            }
                     )
                     PlayerOverlay(
                         visible = controlsVisible,
@@ -415,12 +403,11 @@ private fun PlayerScreen(
                         episodeName = activeNames.getOrNull(if (playingIndex >= 0) playingIndex else index) ?: "",
                         showTopBar = true,
                         onClose = onClose,
-                        onExternal = { onExternal(playUrl) },
                         onToggleFullscreen = { toggleFullscreen.value(); showControls() }
                     )
-                    if (speeding) FastForwardHint()
-                    if (loading && error.isEmpty()) LoadingHint(loadStep)
-                    if (error.isNotEmpty()) ErrorOverlay(error)
+                    if (speeding) FastForwardHint(Modifier.matchParentSize())
+                    if (loading && error.isEmpty()) LoadingHint(loadStep, Modifier.matchParentSize())
+                    if (error.isNotEmpty()) ErrorOverlay(error, Modifier.matchParentSize())
                 }
 
                 // 标题行
@@ -570,7 +557,7 @@ private fun VideoArea(
 }
 
 /**
- * 播放控制层：顶部返回 / 外部播放器，底部控制条。
+ * 播放控制层：顶部返回 / 标题，底部控制条。
  *
  * 底部控制条里依次是：播放暂停、**进度条**、时间、全屏按钮。
  * 它们同属一个 AnimatedVisibility，淡入淡出完全同步。
@@ -585,7 +572,6 @@ private fun PlayerOverlay(
     episodeName: String,
     showTopBar: Boolean,
     onClose: () -> Unit,
-    onExternal: () -> Unit,
     onToggleFullscreen: () -> Unit
 ) {
     AnimatedVisibility(
@@ -614,12 +600,6 @@ private fun PlayerOverlay(
                             Text(episodeName, color = Color(0xCCFFFFFF), fontSize = 12.sp, maxLines = 1)
                         }
                     }
-                    Text(
-                        "外部播放器", color = Color.White, fontSize = 12.sp,
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .clickable { onExternal() }
-                    )
                 }
             }
 
@@ -819,8 +799,8 @@ private fun formatTime(ms: Long): String {
 
 /** 开始加载时的步骤提示 + 转圈 */
 @Composable
-private fun LoadingHint(step: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+private fun LoadingHint(step: String, modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(
                 color = LocalBrand.current,
@@ -842,8 +822,8 @@ private fun LoadingHint(step: String) {
 
 /** 长按快进中的提示 */
 @Composable
-private fun FastForwardHint() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+private fun FastForwardHint(modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.TopCenter) {
         Box(
             modifier = Modifier
                 .padding(top = 48.dp)
@@ -856,17 +836,16 @@ private fun FastForwardHint() {
 }
 
 @Composable
-private fun ErrorOverlay(error: String) {
+private fun ErrorOverlay(error: String, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
             .background(Color.Black.copy(alpha = 0.65f)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(error, color = Color(0xFFFFC46B), fontSize = 13.sp)
             Text(
-                "可尝试「外部播放器」",
+                "可尝试切换其他播放源",
                 color = Color.White, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 8.dp)
             )

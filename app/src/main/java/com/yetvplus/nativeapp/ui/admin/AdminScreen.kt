@@ -663,10 +663,7 @@ private fun UserTab(app: YETVApp) {
             label = { Text("新用户名", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = p, onValueChange = { p = it },
             label = { Text("密码", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { role = "user" }) { Text("普通用户") }
-            Button(onClick = { role = "admin" }) { Text("管理员") }
-        }
+        // 新增用户一律是普通用户；需要管理员的话，建好后用卡片上的「设为管理」提升。
         Button(
             onClick = {
                 if (u.isBlank() || p.isBlank()) { tip = "请填写完整"; return@Button }

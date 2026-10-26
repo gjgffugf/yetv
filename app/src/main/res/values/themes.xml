@@ -11,4 +11,11 @@
     <style name="Theme.YETVPlusNative.Player" parent="Theme.YETVPlusNative">
         <item name="android:windowFullscreen">true</item>
     </style>
+
+    <!-- 开屏：全屏、无标题、纯黑底 -->
+    <style name="Theme.YETVPlusNative.Splash" parent="Theme.YETVPlusNative">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

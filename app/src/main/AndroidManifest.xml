@@ -21,18 +21,27 @@
         android:theme="@style/Theme.YETVPlusNative"
         android:usesCleartextTraffic="true">
 
+        <!-- 开屏页：放了 splash_image / splash_video 素材才会停留，否则直接进主页 -->
+        <activity
+            android:name=".ui.SplashActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|density"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.YETVPlusNative.Splash">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".ui.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|density"
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="user"
-            android:windowSoftInputMode="adjustNothing">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:windowSoftInputMode="adjustNothing" />
 
         <activity
             android:name=".ui.PlayerActivity"

@@ -143,6 +143,22 @@ private val tabs = listOf(
     TabDef(Route.MINE, "我的", Icons.Default.Person)
 )
 
+/** owner / admin 才有管理页；普通用户（user）和未登录不显示 */
+private fun isManager(role: String): Boolean =
+    role.equals("owner", ignoreCase = true) || role.equals("admin", ignoreCase = true)
+
+/**
+ * 底部可见的栏目。普通用户登录后直接去掉「管理」。
+ * 用 prefs.role 作 key：登录后 role 变化，AppRoot 重组时会自动重算。
+ */
+@Composable
+private fun visibleTabs(app: YETVApp): List<TabDef> {
+    val role = app.prefs.role
+    return remember(role) {
+        if (isManager(role)) tabs else tabs.filter { it.route != Route.ADMIN }
+    }
+}
+
 @Composable
 private fun AppRoot() {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as YETVApp
@@ -172,12 +188,25 @@ private fun AppRoot() {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route
 
+            // 非管理员若因某种原因停在管理页，退回首页。
+            // 否则底部 Dock 不含「管理」会被隐藏，用户就卡在这一页出不去了。
+            val hasAdmin = isManager(app.prefs.role)
+            LaunchedEffect(currentRoute, hasAdmin) {
+                if (!hasAdmin && currentRoute == Route.ADMIN) {
+                    navController.navigate(Route.HOME) {
+                        popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+            }
+
             Scaffold(
                 containerColor = Color.Transparent,
                 bottomBar = {
-                    val show = tabs.any { it.route == currentRoute }
+                    val shown = visibleTabs(app)
+                    val show = shown.any { it.route == currentRoute }
                     if (show) {
-                        GlassDock(tabs = tabs, currentRoute = currentRoute) { route ->
+                        GlassDock(tabs = shown, currentRoute = currentRoute) { route ->
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true

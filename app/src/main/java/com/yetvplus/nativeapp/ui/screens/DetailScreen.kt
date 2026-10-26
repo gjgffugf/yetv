@@ -40,7 +40,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.yetvplus.nativeapp.YETVApp
 import com.yetvplus.nativeapp.data.DetailInfo
@@ -61,6 +61,33 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableStateListOf
 import com.yetvplus.nativeapp.data.DoubanItem
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.fillMaxHeight
+
+/**
+ * 切换播放源时的过渡：淡入 + 轻微横向滑入，避免直接跳变太生硬。
+ * 海报 / 介绍 / 剧集三处共用。
+ */
+@Composable
+private fun VariantTransition(
+    target: Any?,
+    content: @Composable () -> Unit
+) {
+    AnimatedContent(
+        targetState = target,
+        transitionSpec = {
+            (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 14 })
+                .togetherWith(fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 14 })
+        },
+        label = "variant"
+    ) { content() }
+}
 
 @Composable
 fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
@@ -165,16 +192,25 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
         ) {
+            VariantTransition(variantIndex) {
             Row(modifier = Modifier.padding(bottom = 12.dp)) {
-                AsyncImage(
+                SubcomposeAsyncImage(
                     model = ImageRequest.Builder(context).data(poster).crossfade(true).build(),
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    // Fit：不裁切也不拉伸，1:1 / 2:3 / 9:16 各种比例都完整显示
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .width(108.dp)
                         .height(150.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(LocalSurface.current)
+                        .background(LocalSurface.current),
+                    loading = {
+                        // 未加载完成时：默认海报打底 + 转圈
+                        DefaultPoster(showSpinner = true)
+                    },
+                    error = {
+                        DefaultPoster()
+                    }
                 )
                 Column(modifier = Modifier.padding(start = 12.dp)) {
                     Text(
@@ -211,6 +247,9 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                 }
             }
 
+            }
+
+            VariantTransition(variantIndex) {
             when {
                 loading -> {
                     Box(
@@ -270,6 +309,8 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                     Text("暂未获取到播放地址", color = LocalTextSecondary.current, fontSize = 13.sp,
                         modifier = Modifier.padding(vertical = 14.dp))
                 }
+            }
+
             }
 
             Box(modifier = Modifier.height(24.dp))

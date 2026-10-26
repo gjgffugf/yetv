@@ -101,7 +101,10 @@ fun UpdateCard() {
     Card(
         colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
         shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth()
+        // 卡片纵向多留 2dp
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
     ) {
         Row(
             modifier = Modifier

@@ -205,11 +205,7 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
             .background(LocalSurface.current)
     ) {
         if (url.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(
-                    Brush.linearGradient(listOf(LocalSurface.current, MaterialTheme.colorScheme.surfaceVariant))
-                )
-            )
+            DefaultPoster()
         } else {
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
@@ -217,27 +213,19 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
                     .crossfade(true)
                     .build(),
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                // Fit：不裁切也不拉伸，1:1 / 2:3 / 9:16 各种比例都能完整显示
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
                 loading = {
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(
-                            Brush.linearGradient(listOf(LocalSurface.current, LocalSurfaceLight.current))
-                        )
-                    )
+                    // 加载中：先显示默认海报，再叠一个转圈，让用户知道在加载
+                    DefaultPoster(showSpinner = true)
                 },
                 error = {
-                    // 还没试过代理就再试一次，否则画占位
+                    // 还没试过代理就再试一次；两次都失败就用默认海报
                     LaunchedEffect(Unit) {
                         if (!useProxy && url.startsWith("http")) useProxy = true
                     }
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(
-                            Brush.linearGradient(
-                                listOf(LocalSurface.current, MaterialTheme.colorScheme.surfaceVariant)
-                            )
-                        )
-                    )
+                    DefaultPoster()
                 }
             )
         }
@@ -251,6 +239,40 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
             ) {
                 Text(badge, color = Color(0xFFFFC46B), fontSize = 10.sp)
             }
+        }
+    }
+}
+
+/**
+ * 默认海报占位图。
+ *
+ * 用途：地址为空、正在加载、加载失败时先显示它，避免一片空白。
+ * 图片本体是 `res/drawable-nodpi/poster_placeholder.png`，
+ * **直接替换这个文件就能换成你自己的图**（png / jpg 都支持）。
+ *
+ * 用 Fit 比例显示：不裁切、不拉伸，1:1 / 2:3 / 9:16 各种尺寸都完整呈现。
+ */
+@Composable
+fun DefaultPoster(
+    modifier: Modifier = Modifier,
+    showSpinner: Boolean = false,
+    spinnerSize: androidx.compose.ui.unit.Dp = 22.dp
+) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Image(
+            painter = androidx.compose.ui.res.painterResource(
+                id = com.yetvplus.nativeapp.R.drawable.poster_placeholder
+            ),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize()
+        )
+        if (showSpinner) {
+            CircularProgressIndicator(
+                color = LocalBrand.current,
+                modifier = Modifier.size(spinnerSize),
+                strokeWidth = 2.dp
+            )
         }
     }
 }
