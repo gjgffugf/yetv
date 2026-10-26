@@ -84,6 +84,7 @@ import com.yetvplus.nativeapp.ui.darkModeState
 import com.yetvplus.nativeapp.ui.themeArgbState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.foundation.layout.wrapContentSize
 
 private const val PLAYER_UA =
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
@@ -348,13 +349,16 @@ private fun PlayerScreen(
                     player = player,
                     modifier = Modifier
                         .fillMaxSize()
-                        .longPressFastForward(
-                            onStart = { setSpeed(3f); speeding = true },
-                            onEnd = { setSpeed(savedSpeed); speeding = false }
+                        .playerGestures(
+                            onTap = {
+                                if (controlsVisible) controlsVisible = false else showControls()
+                            },
+                            onLongPressStart = { setSpeed(3f); speeding = true },
+                            onLongPressEnd = { setSpeed(savedSpeed); speeding = false }
                         )
-                        .tapToToggleControls { showControls(); controlsVisible = !controlsVisible }
                 )
                 PlayerOverlay(
+                    modifier = Modifier.matchParentSize(),
                     visible = controlsVisible,
                     player = player,
                     fullscreen = fullscreen,
@@ -385,17 +389,16 @@ private fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(16f / 9f)
-                            .longPressFastForward(
-                                onStart = { setSpeed(3f); speeding = true },
-                                onEnd = { setSpeed(savedSpeed); speeding = false }
-                            )
-                            .tapToToggleControls {
-                                // 注意：不能写成 showControls(); controlsVisible = !controlsVisible
-                                // 那样先置 true 再取反，结果永远是 false，点一下控件就再也出不来。
-                                if (controlsVisible) controlsVisible = false else showControls()
-                            }
+                                .playerGestures(
+                                    onTap = {
+                                        if (controlsVisible) controlsVisible = false else showControls()
+                                    },
+                                    onLongPressStart = { setSpeed(3f); speeding = true },
+                                    onLongPressEnd = { setSpeed(savedSpeed); speeding = false }
+                                )
                     )
                     PlayerOverlay(
+                        modifier = Modifier.matchParentSize(),
                         visible = controlsVisible,
                         player = player,
                         fullscreen = fullscreen,
@@ -493,43 +496,57 @@ private fun PlayerScreen(
 // ---------------- 手势 ----------------
 
 /** 长按 3× 快进 */
-private fun Modifier.longPressFastForward(
-    onStart: () -> Unit,
-    onEnd: () -> Unit
+/**
+ * 播放区手势：单击切换控件显隐，长按 3× 快进。
+ *
+ * 必须放在**同一个** pointerInput 里判定。之前拆成两个 pointerInput
+ * （长按 + 点击），两者会互相抢事件；且全屏那处还写成了
+ * `showControls(); controlsVisible = !controlsVisible`（先置 true 再取反，
+ * 结果永远是 false），表现就是全屏后点击画面毫无反应。
+ */
+private fun Modifier.playerGestures(
+    onTap: () -> Unit,
+    onLongPressStart: () -> Unit,
+    onLongPressEnd: () -> Unit
 ): Modifier = this.pointerInput(Unit) {
-    // 用 awaitPointerEventScope 自己判定长按。
+    // 用 awaitPointerEventScope 自行判定长按与点击。
     // detectTapGestures 的 onPress 接收者是 PressGestureScope，
     // 它不是 CoroutineScope，里面调 launch 会报 receiver type mismatch。
     awaitPointerEventScope {
         while (true) {
             val down = awaitFirstDown(requireUnconsumed = false)
+            val start = down.position
             val slop = viewConfiguration.touchSlop
+            var moved = false
+
+            // 超时仍未抬起、且手指没移出容差 → 长按
             val held = withTimeoutOrNull(FAST_FORWARD_HOLD_MS) {
                 while (true) {
                     val e = awaitPointerEvent()
                     val c = e.changes.firstOrNull { it.id == down.id } ?: break
                     if (!c.pressed) break
-                    if ((c.position - down.position).getDistance() > slop) break
+                    if ((c.position - start).getDistance() > slop) {
+                        moved = true
+                        break
+                    }
                 }
             } == null
-            if (!held) continue
 
-            onStart()
-            while (true) {
-                val e = awaitPointerEvent()
-                val c = e.changes.firstOrNull { it.id == down.id } ?: break
-                if (!c.pressed) break
+            when {
+                held && !moved -> {
+                    onLongPressStart()
+                    while (true) {
+                        val e = awaitPointerEvent()
+                        val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!c.pressed) break
+                    }
+                    onLongPressEnd()
+                }
+                !held && !moved -> onTap()
             }
-            onEnd()
         }
     }
 }
-
-/** 单击切换控件显隐 */
-private fun Modifier.tapToToggleControls(onTap: () -> Unit): Modifier =
-    this.pointerInput(Unit) {
-        detectTapGestures(onTap = { onTap() })
-    }
 
 // ---------------- 视频区与控制层 ----------------
 
@@ -566,6 +583,7 @@ private fun VideoArea(
 @Composable
 private fun PlayerOverlay(
     visible: Boolean,
+    modifier: Modifier = Modifier,
     player: ExoPlayer,
     fullscreen: Boolean,
     title: String,
@@ -576,7 +594,10 @@ private fun PlayerOverlay(
 ) {
     AnimatedVisibility(
         visible = visible,
-        modifier = Modifier.fillMaxSize(),
+        // 关键：不能写 fillMaxSize。小窗时外层 Box 高度由 16:9 的视频区决定，
+        // fillMaxSize 会造成尺寸循环依赖，把控制条顶到画面上方。
+        // matchParentSize 严格跟随视频区，竖屏也能正确贴底。
+        modifier = modifier,
         enter = fadeIn(tween(180)),
         exit = fadeOut(tween(180))
     ) {
@@ -739,8 +760,13 @@ private fun PlayerProgressBar(
             }
         }
 
-        // 拖动圆点
-        if (totalWidth > 0.dp) {
+        // 拖动圆点。
+        // 必须从**最左端**起算偏移：外层是 Center 对齐，直接 offset 会多出
+        // 半个容器宽度的偏移，导致白点和实际进度对不上。
+        // 先 wrapContentSize(CenterStart) 归零到左端，再按进度偏移。
+        Box(
+            modifier = Modifier.fillMaxWidth().wrapContentSize(Alignment.CenterStart)
+        ) {
             Box(
                 modifier = Modifier
                     .size(11.dp)

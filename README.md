@@ -339,6 +339,17 @@ GET /api/config/custom_category 404
 替换 `app/src/main/res/drawable-nodpi/poster_placeholder.png` 即可（png / jpg 都支持）。
 显示用 `ContentScale.Fit`：1:1、2:3、9:16 各种比例都不裁切、不拉伸，完整呈现。
 
+
+## 二·十七、本轮修复（v1.0.3）
+
+| 问题 | 根因 | 修法 |
+|---|---|---|
+| 详情页不显示海报、播放源与剧集重叠 | `AnimatedContent` 里直接放了 Row + Card **多个子项**，它们被叠在同一位置 | 在 content 外包一层 `Column`，保证 AnimatedContent 只有一个根布局 |
+| 竖屏播放时进度条跑到顶部 | 控制层用 `fillMaxSize`，与「高度由 16:9 视频区决定」的外层 Box 形成尺寸循环依赖 | 改用 `matchParentSize()`，严格跟随视频区 |
+| 全屏后点击画面控件不弹出 | ① 拆成两个 `pointerInput`（长按 + 点击）互相抢事件；② 全屏那处写成 `showControls(); controlsVisible = !controlsVisible`，先置 true 再取反，结果永远是 false | 合并为单个 `playerGestures`，用一个 pointerInput 同时判定点击与长按 |
+| 进度条白点与进度不一致 | 外层是 Center 对齐，白点直接 `offset` 会多出半个容器宽度的偏移 | 先 `wrapContentSize(CenterStart)` 归零到左端，再按进度偏移 |
+| 站长账号没有管理页 | 角色只从 auth cookie 解析，cookie 格式对不上就取不到，站长被当成普通用户 | 新增 `Repo.adminRole()` 读 `/api/admin/config` 顶层 `Role`（抓包实测为 `owner`）；登录成功后和每次启动各校准一次。**只有 owner / admin 显示管理页，普通用户不显示** |
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

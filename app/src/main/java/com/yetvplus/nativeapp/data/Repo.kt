@@ -150,6 +150,9 @@ class Repo(private val api: ApiClient, private val prefs: Prefs) {
             if (api.isOk(res)) {
                 // 服务端 Set-Cookie 的 auth 里带 role，取出来供管理面板判断权限
                 api.saveRoleFromCookie()
+                // cookie 解析可能失败，再用 /api/admin/config 的 Role 兜底
+                val r = runCatching { adminRole() }.getOrNull() ?: ""
+                api.saveRole(r)
                 ""
             } else {
                 api.errorOf(res)
@@ -201,6 +204,27 @@ class Repo(private val api: ApiClient, private val prefs: Prefs) {
     }
 
     // ---------- 管理面板 ----------
+
+    /**
+     * 取当前登录账号的真实角色。
+     *
+     * 抓包确认 `/api/admin/config` 顶层就有 `"Role":"owner"`，这是最权威的来源。
+     * 之前只从 auth cookie 里解析 role，一旦 cookie 格式对不上就取不到，
+     * 站长登录也会被当成普通用户、看不到管理页。
+     */
+    /** 写入角色 */
+    fun saveRole(role: String) = api.saveRole(role)
+
+    suspend fun adminRole(): String = withContext(Dispatchers.IO) {
+        val res = api.get("/api/admin/config")
+        val o = when {
+            res == null || !res.isJsonObject -> return@withContext ""
+            else -> res.asJsonObject
+        }
+        if (o.has("Role")) o.get("Role").asString
+        else if (o.has("role")) o.get("role").asString
+        else ""
+    }
 
     suspend fun adminUsers(): List<UserItem> = withContext(Dispatchers.IO) {
         val res = api.get("/api/admin/config")

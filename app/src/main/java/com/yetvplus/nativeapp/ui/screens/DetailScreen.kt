@@ -81,12 +81,18 @@ private fun VariantTransition(
 ) {
     AnimatedContent(
         targetState = target,
+        modifier = Modifier.fillMaxWidth(),
         transitionSpec = {
-            (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 14 })
-                .togetherWith(fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 14 })
+            (fadeIn(tween(200)) + slideInHorizontally(tween(200)) { it / 20 })
+                .togetherWith(fadeOut(tween(150)) + slideOutHorizontally(tween(150)) { -it / 20 })
         },
         label = "variant"
-    ) { content() }
+    ) {
+        // 关键：AnimatedContent 只能有**一个**根布局。
+        // 之前直接把 Row + Card 多个子项丢进去，它们会被叠在同一位置 —— 这就是
+        // 「海报不显示」「播放源与剧集重叠」的原因。外面包一层 Column 即可。
+        Column(modifier = Modifier.fillMaxWidth()) { content() }
+    }
 }
 
 @Composable

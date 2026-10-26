@@ -152,17 +152,30 @@ private fun isManager(role: String): Boolean =
  * 用 prefs.role 作 key：登录后 role 变化，AppRoot 重组时会自动重算。
  */
 @Composable
-private fun visibleTabs(app: YETVApp): List<TabDef> {
-    val role = app.prefs.role
-    return remember(role) {
+private fun visibleTabs(app: YETVApp, role: String): List<TabDef> =
+    remember(role) {
         if (isManager(role)) tabs else tabs.filter { it.route != Route.ADMIN }
     }
-}
 
 @Composable
 private fun AppRoot() {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as YETVApp
     val navController = rememberNavController()
+
+    // 角色：优先用已缓存的，启动时再用 /api/admin/config 的 Role 校准一次。
+    // 只有 owner / admin 才显示「管理」；普通用户不显示。
+    var role by remember { mutableStateOf(app.prefs.role) }
+    LaunchedEffect(Unit) {
+        if (app.prefs.isLoggedIn()) {
+            val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { app.repo.adminRole() }.getOrNull() ?: ""
+            }
+            if (r.isNotBlank()) {
+                app.repo.saveRole(r)
+                role = r
+            }
+        }
+    }
 
     // 每次进软件自动检查一次更新
     LaunchedEffect(Unit) {
@@ -190,7 +203,7 @@ private fun AppRoot() {
 
             // 非管理员若因某种原因停在管理页，退回首页。
             // 否则底部 Dock 不含「管理」会被隐藏，用户就卡在这一页出不去了。
-            val hasAdmin = isManager(app.prefs.role)
+            val hasAdmin = isManager(role)
             LaunchedEffect(currentRoute, hasAdmin) {
                 if (!hasAdmin && currentRoute == Route.ADMIN) {
                     navController.navigate(Route.HOME) {
@@ -203,7 +216,7 @@ private fun AppRoot() {
             Scaffold(
                 containerColor = Color.Transparent,
                 bottomBar = {
-                    val shown = visibleTabs(app)
+                    val shown = visibleTabs(app, role)
                     val show = shown.any { it.route == currentRoute }
                     if (show) {
                         GlassDock(tabs = shown, currentRoute = currentRoute) { route ->

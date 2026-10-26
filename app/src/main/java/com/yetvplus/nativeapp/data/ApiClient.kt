@@ -211,6 +211,11 @@ class ApiClient(private val context: Context) {
         }
     }
 
+    /** 写入角色（owner / admin / user）。供 Repo 在拿到接口 Role 后回填 */
+    fun saveRole(role: String) {
+        if (role.isNotBlank()) prefs.role = role
+    }
+
     companion object {
         private const val UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
