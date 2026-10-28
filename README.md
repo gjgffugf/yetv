@@ -435,6 +435,26 @@ import androidx.compose.material.icons.filled.PlayArrow
 
 自检脚本已加规则：扫描所有 `androidx.compose.material.icons.Icons.X.Y` 形式的全限定引用。
 
+
+### This annotation is not applicable to target 'top level property with backing field'
+
+**根因**：`@Composable` 和它要标注的 `fun` 之间，被插进了一个 `const val`：
+
+```kotlin
+@Composable
+private const val RES_BG_PREFIX = "res://"   // ← 注解挂到了常量上
+
+fun AppBackground(...) { ... }               // ← 函数反而没了 @Composable
+```
+
+于是同时出现三条报错：注解不适用于常量、`AppBackground` 调用 Composable 但自身未标注、
+以及 Composable 只能在 Composable 上下文调用。
+
+**修法**：把 `const val` 提到 `@Composable` 之前，让注解紧贴 `fun`。
+
+自检规则已加强：**`@Composable` 后面（跳过注释）必须紧跟 `fun`**，
+否则一律判定为误挂 —— 之前的正则漏了 `private const val` 这种带多修饰符的写法。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

@@ -76,11 +76,11 @@ import androidx.compose.foundation.border
 
 
 
-/** 自定义背景图（本地文件）+ 暗化遮罩，全 App 生效 */
-@Composable
 /** 内置背景图的标记前缀：res://bg_3 表示用 drawable 里的 bg_3 */
 private const val RES_BG_PREFIX = "res://"
 
+/** 自定义背景图（本地文件）+ 暗化遮罩，全 App 生效 */
+@Composable
 fun AppBackground(bgPath: String, dim: Float) {
     if (bgPath.isEmpty()) return
 
