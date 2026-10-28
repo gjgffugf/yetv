@@ -372,6 +372,43 @@ GET /api/config/custom_category 404
 把图片放进 `app/src/main/res/drawable-nodpi/`，命名 `bg_1.jpg`、`bg_2.jpg` …… 最多扫到 `bg_20`。
 代码里是动态查找的，**不用改任何代码**。默认已附 4 张，直接替换即可。
 
+
+## 二·十九、编译修复（v1.0.4）
+
+### Duplicate resources：poster_placeholder
+
+```
+ERROR: [drawable-nodpi-v4/poster_placeholder]
+ .../poster_placeholder.png
+ .../poster_placeholder.jpg: Duplicate resources
+```
+
+**根因**：Android 资源名**不含扩展名**。`poster_placeholder.png` 和
+`poster_placeholder.jpg` 会被算作同一个资源 `poster_placeholder`，两个文件同时存在就冲突。
+
+**修法（两层）**：
+1. 删掉工程自带的 `poster_placeholder.png`，保留你自己的 `.jpg`；
+2. 代码改为 `getIdentifier` **动态查找**，不再硬引用 `R.drawable.poster_placeholder`。
+   好处：png / jpg 放哪个都行；一张都不放也能编译（退化为渐变底 + 播放图标）。
+
+### 放素材的唯一规则
+
+**同一个名字只放一个文件**，不要 png 和 jpg 各放一份。
+
+| 素材 | 路径 | 说明 |
+|---|---|---|
+| 默认海报 | `res/drawable-nodpi/poster_placeholder.png` 或 `.jpg` | 二选一，别都放 |
+| 登录背景 | `res/drawable-nodpi/bg_default.jpg` | |
+| 随机背景 | `res/drawable-nodpi/bg_1.jpg` … `bg_20.jpg` | 每次启动随机一张 |
+| 开屏图 | `res/drawable-nodpi/splash_image.png` 或 `.jpg` | 二选一 |
+| 开屏视频 | `res/raw/splash_video.mp4` | |
+
+仓库里附了 `check_res.sh`，推代码前跑一下能提前发现同名冲突：
+
+```bash
+bash check_res.sh
+```
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

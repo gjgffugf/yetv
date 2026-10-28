@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -274,10 +275,16 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
  * 默认海报占位图。
  *
  * 用途：地址为空、正在加载、加载失败时先显示它，避免一片空白。
- * 图片本体是 `res/drawable-nodpi/poster_placeholder.png`，
- * **直接替换这个文件就能换成你自己的图**（png / jpg 都支持）。
  *
- * 用 Fit 比例显示：不裁切、不拉伸，1:1 / 2:3 / 9:16 各种尺寸都完整呈现。
+ * 图片放 `app/src/main/res/drawable-nodpi/poster_placeholder.png` 或 `.jpg`，
+ * **直接丢进去就行，不用改代码**。
+ *
+ * 这里是**动态查找**而不是直接引用 `R.drawable.poster_placeholder`，原因有两点：
+ * 1. 同名不同扩展名（如同时放 png 和 jpg）会撞成同一个资源名，
+ *    导致 `Duplicate resources` 编译失败 —— Android 资源名不含扩展名；
+ * 2. 一张都不放时也能正常编译（退化为纯色底 + 播放图标），不会因缺资源报错。
+ *
+ * 显示用 Fit：不裁切、不拉伸，1:1 / 2:3 / 9:16 各种比例都完整呈现。
  */
 @Composable
 fun DefaultPoster(
@@ -285,15 +292,39 @@ fun DefaultPoster(
     showSpinner: Boolean = false,
     spinnerSize: androidx.compose.ui.unit.Dp = 22.dp
 ) {
+    val context = LocalContext.current
+    val id = remember {
+        context.resources.getIdentifier("poster_placeholder", "drawable", context.packageName)
+    }
+
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Image(
-            painter = androidx.compose.ui.res.painterResource(
-                id = com.yetvplus.nativeapp.R.drawable.poster_placeholder
-            ),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize()
-        )
+        if (id != 0) {
+            Image(
+                painter = androidx.compose.ui.res.painterResource(id = id),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // 没放图时的兜底：渐变底 + 播放图标，至少不是一片空白
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(LocalSurface.current, MaterialTheme.colorScheme.surfaceVariant)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    androidx.compose.material.icons.Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = LocalTextSecondary.current,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+        }
         if (showSpinner) {
             CircularProgressIndicator(
                 color = LocalBrand.current,
