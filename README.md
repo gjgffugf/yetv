@@ -409,6 +409,32 @@ ERROR: [drawable-nodpi-v4/poster_placeholder]
 bash check_res.sh
 ```
 
+
+## 二·二十、编译修复（v1.0.4）
+
+### Unresolved reference: setRole / roleTick / roleState
+
+**根因**：这三个成员被写在了 `UiState.kt` 的**顶层**，而 `object UiState { ... }` 在它们下面。
+调用处写的是 `UiState.roleState`，自然找不到 —— 它们根本不在 object 里。
+
+**修法**：把三者移进 `object UiState` 内部。
+自检脚本已加规则：凡 `UiState.xxx` 的引用，都会反查 object 内是否真有该成员。
+
+### Unresolved reference: PlayArrow
+
+**根因**：`Icons.Default` 是**扩展属性**，Kotlin 不允许用
+`androidx.compose.material.icons.Icons.Default.PlayArrow` 这种全限定名访问扩展成员 ——
+扩展成员没有可供全限定引用的 JVM 签名。
+
+**修法**：改为 import 后用 `Icons.Default.PlayArrow`：
+
+```kotlin
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+```
+
+自检脚本已加规则：扫描所有 `androidx.compose.material.icons.Icons.X.Y` 形式的全限定引用。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

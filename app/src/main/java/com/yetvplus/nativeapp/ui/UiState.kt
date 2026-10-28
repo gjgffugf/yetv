@@ -14,29 +14,6 @@ val themeArgbState = mutableIntStateOf(0)
 /** 深色模式。放在可观察状态里，切换后界面立即重组。 */
 val darkModeState = mutableStateOf(true)
 
-/**
- * 当前登录角色（owner / admin / user）。
- * 放在可观察状态里：任何地方一改，底部 Dock 立刻增删「管理」入口，
- * 不用重启应用。
- */
-var roleState = mutableStateOf("")
-
-/**
- * 角色刷新计数。每次回到前台 +1，用来重新拉一次真实角色。
- *
- * 这是「重进应用后管理页不显示」的根因修复：MainActivity 是 singleTop，
- * 从后台回来不会重新 onCreate，Compose 里的 LaunchedEffect(Unit) 不重跑，
- * 角色就一直停在启动时的旧值。
- */
-var roleTick = mutableIntStateOf(0)
-
-/**
- * 写入角色：同时更新持久化和可观察状态，保证两处永远一致。
- */
-fun setRole(role: String) {
-    roleState.value = role
-}
-
 /** 待安装的更新；非空时弹出更新提示 */
 val pendingUpdate = mutableStateOf<com.yetvplus.nativeapp.ui.UpdateManager.UpdateInfo?>(null)
 
@@ -47,6 +24,30 @@ val pendingUpdate = mutableStateOf<com.yetvplus.nativeapp.ui.UpdateManager.Updat
  * 输入框里的关键词和已加载的结果都不能丢（Composable 重建会重置 remember）。
  */
 object UiState {
+    /**
+     * 当前登录角色（owner / admin / user）。
+     * 放在可观察状态里：任何地方一改，底部 Dock 立刻增删「管理」入口，
+     * 不用重启应用。
+     *
+     * 注意：必须声明在 object 内部。放到顶层的话，
+     * `UiState.roleState` 这种写法就会 Unresolved reference。
+     */
+    var roleState = mutableStateOf("")
+
+    /**
+     * 角色刷新计数。每次回到前台 +1，用来重新拉一次真实角色。
+     *
+     * 这是「重进应用后管理页不显示」的根因修复：MainActivity 是 singleTop，
+     * 从后台回来不会重新 onCreate，Compose 里的 LaunchedEffect(Unit) 不重跑，
+     * 角色就一直停在启动时的旧值。
+     */
+    var roleTick = mutableIntStateOf(0)
+
+    /** 写入角色：只更新可观察状态（持久化由 ApiClient.saveRole 负责） */
+    fun setRole(role: String) {
+        roleState.value = role
+    }
+
     /** 搜索框当前文字 */
     var keyword: String = ""
 

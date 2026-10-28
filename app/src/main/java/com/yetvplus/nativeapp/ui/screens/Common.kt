@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -318,7 +320,7 @@ fun DefaultPoster(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    androidx.compose.material.icons.Icons.Default.PlayArrow,
+                    Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = LocalTextSecondary.current,
                     modifier = Modifier.size(30.dp)
