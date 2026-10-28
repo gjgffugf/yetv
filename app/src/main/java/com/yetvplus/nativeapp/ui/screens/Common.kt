@@ -75,8 +75,35 @@ import androidx.compose.foundation.border
 
 /** 自定义背景图（本地文件）+ 暗化遮罩，全 App 生效 */
 @Composable
+/** 内置背景图的标记前缀：res://bg_3 表示用 drawable 里的 bg_3 */
+private const val RES_BG_PREFIX = "res://"
+
 fun AppBackground(bgPath: String, dim: Float) {
     if (bgPath.isEmpty()) return
+
+    // 内置资源背景（多张随机时用这种形式）
+    if (bgPath.startsWith(RES_BG_PREFIX)) {
+        val ctx = LocalContext.current
+        val name = bgPath.removePrefix(RES_BG_PREFIX)
+        val id = ctx.resources.getIdentifier(name, "drawable", ctx.packageName)
+        if (id != 0) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Image(
+                    painter = androidx.compose.ui.res.painterResource(id = id),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = dim.coerceIn(0f, 0.9f)))
+                )
+            }
+        }
+        return
+    }
+
     val bmp = try {
         BitmapFactory.decodeFile(bgPath)
     } catch (e: Exception) {
@@ -650,4 +677,24 @@ fun GroupGrid(
             }
         }
     }
+}
+
+
+/**
+ * 从内置背景图里随机挑一张，返回 `res://bg_x` 形式。
+ *
+ * 资源命名：`res/drawable-nodpi/bg_1.jpg`、`bg_2.jpg` …… 直接往里加图即可，
+ * 无需改代码，这里会从 1 开始扫到 20。
+ *
+ * 只在用户没有自定义背景时调用：每次启动换一张。
+ */
+fun randomBuiltInBg(context: android.content.Context): String {
+    val names = ArrayList<String>()
+    for (i in 1..20) {
+        val n = "bg_$i"
+        val id = context.resources.getIdentifier(n, "drawable", context.packageName)
+        if (id != 0) names.add(n)
+    }
+    if (names.isEmpty()) return ""
+    return RES_BG_PREFIX + names[(System.currentTimeMillis() % names.size).toInt()]
 }

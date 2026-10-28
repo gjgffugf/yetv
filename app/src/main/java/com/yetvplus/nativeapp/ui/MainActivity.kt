@@ -115,10 +115,31 @@ object PlayerArgs {
 }
 
 class MainActivity : ComponentActivity() {
+    /**
+     * 每次回到前台都 +1。
+     * MainActivity 是 singleTop，从后台回来不会重新 onCreate，
+     * 不主动触发的话角色会一直停在启动时的旧值，管理页就不显示。
+     */
+    override fun onResume() {
+        super.onResume()
+        UiState.roleTick.intValue++
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 应用刷新率设置（默认跟随系统）
         RefreshRate.apply(this, (application as YETVApp).prefs.refreshRate)
+
+        // 每次启动从内置背景图里随机挑一张。
+        // 只在用户没选过相册图时生效（bgPath 为空，或上一次就是随机内置图）。
+        run {
+            val prefs = (application as YETVApp).prefs
+            val cur = prefs.bgPath
+            if (cur.isEmpty() || cur.startsWith("res://")) {
+                val picked = com.yetvplus.nativeapp.ui.screens.randomBuiltInBg(this)
+                if (picked.isNotEmpty()) prefs.bgPath = picked
+            }
+        }
         setContent {
             (application as YETVApp)
             // 观察可变的主题色状态，设置页一改立刻生效，不用重启
@@ -162,17 +183,17 @@ private fun AppRoot() {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as YETVApp
     val navController = rememberNavController()
 
-    // 角色：优先用已缓存的，启动时再用 /api/admin/config 的 Role 校准一次。
-    // 只有 owner / admin 才显示「管理」；普通用户不显示。
-    var role by remember { mutableStateOf(app.prefs.role) }
-    LaunchedEffect(Unit) {
+    // 角色：只有 owner / admin 才显示「管理」，普通用户不显示。
+    // 用 UiState.roleState 这个可观察状态，任何地方改了都会立刻反映到 Dock。
+    val role = UiState.roleState.value
+    LaunchedEffect(UiState.roleTick.intValue) {
+        if (role.isEmpty()) UiState.setRole(app.prefs.role)
         if (app.prefs.isLoggedIn()) {
             val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching { app.repo.adminRole() }.getOrNull() ?: ""
             }
             if (r.isNotBlank()) {
-                app.repo.saveRole(r)
-                role = r
+                app.repo.saveRole(r)   // 同时写 Prefs 和 UiState
             }
         }
     }

@@ -121,13 +121,33 @@ class Prefs(context: Context) {
     // ---------- 观看记录（列表，供「我的」页展示）----------
 
     /** 记录一部片：标题、海报、看到第几集、时间戳。同一部片覆盖更新。 */
+    /**
+     * 写入观看记录。
+     *
+     * videoKey 是 source+id，**同一个片子换源或换 id 时 key 就不同**，
+     * 于是列表里会同时留着“看到第 1 集”和“看到第 2 集”两条。
+     * 所以写入前先按片名清掉同名旧记录，保证一部片只留最新一条。
+     */
     fun putWatchRecord(videoKey: String, title: String, poster: String, episode: Int) {
         val map = LinkedHashMap<String, String>()
         map["t"] = title
         map["p"] = poster
         map["e"] = episode.toString()
         map["ts"] = System.currentTimeMillis().toString()
-        sp.edit().putString("wr_$videoKey", GSON.toJson(map)).apply()
+
+        val ed = sp.edit()
+        if (title.isNotBlank()) {
+            val type = com.google.gson.reflect.TypeToken.getParameterized(
+                Map::class.java, String::class.java, String::class.java
+            ).type
+            for ((k, v) in sp.all) {
+                if (!k.startsWith("wr_") || k == "wr_$videoKey") continue
+                if (v !is String) continue
+                val m = runCatching { GSON.fromJson<Map<String, String>>(v, type) }.getOrNull() ?: continue
+                if (m["t"] == title) ed.remove(k)
+            }
+        }
+        ed.putString("wr_$videoKey", GSON.toJson(map)).apply()
     }
 
     /** 按最近观看排序 */

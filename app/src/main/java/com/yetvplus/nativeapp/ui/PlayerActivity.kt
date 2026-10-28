@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -75,6 +77,7 @@ import com.yetvplus.nativeapp.data.VideoItem
 import com.yetvplus.nativeapp.ui.screens.EpisodeSection
 import com.yetvplus.nativeapp.ui.screens.SourceSwitchBar
 import com.yetvplus.nativeapp.ui.theme.Brand
+import com.yetvplus.nativeapp.ui.theme.LocalBg
 import com.yetvplus.nativeapp.ui.theme.LocalBrand
 import com.yetvplus.nativeapp.ui.theme.LocalSurfaceLight
 import com.yetvplus.nativeapp.ui.theme.LocalTextPrimary
@@ -97,8 +100,17 @@ private const val FAST_FORWARD_HOLD_MS = 350L
 
 class PlayerActivity : ComponentActivity() {
 
+    /** 当前是否处于全屏。由播放页同步过来，供返回键判断（顶层函数要访问，不能是 private） */
+    var fullscreenNow = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 按系统返回键一律直接退出（回到详情页），不再先退回竖屏播放
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                finish()
+            }
+        })
 
         // 播放页按设置切刷新率，高刷屏上画面更顺
         RefreshRate.apply(this, (application as YETVApp).prefs.refreshRate)
@@ -160,6 +172,32 @@ private fun PlayerScreen(
     val activity = context as? Activity
     val prefs = app.prefs
 
+    // 移动网络下先问一次，避免不知不觉跑掉流量
+    var meteredConfirmed by remember { mutableStateOf(!isMeteredNetwork(context)) }
+    var showMeteredDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (isMeteredNetwork(context)) showMeteredDialog = true
+    }
+    if (showMeteredDialog && !meteredConfirmed) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { },
+            title = { Text("正在使用移动数据") },
+            text = { Text("当前为移动网络，继续播放会消耗较多流量。是否继续？") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    meteredConfirmed = true
+                    showMeteredDialog = false
+                }) { Text("继续播放", color = LocalBrand.current) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showMeteredDialog = false
+                    (context as? PlayerActivity)?.finish()
+                }) { Text("取消") }
+            }
+        )
+    }
+
     var variantIndex by remember { mutableIntStateOf(startVariant.coerceIn(0, (variants.size - 1).coerceAtLeast(0))) }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (urls.size - 1).coerceAtLeast(0))) }
 
@@ -191,6 +229,10 @@ private fun PlayerScreen(
     var savedSpeed by remember { mutableFloatStateOf(1f) }
     var loadStep by remember { mutableStateOf("准备中…") }
     var loading by remember { mutableStateOf(true) }
+    /** 锁定：锁定后点击画面只显示锁按钮，进度条/暂停等全部隐藏 */
+    var locked by remember { mutableStateOf(false) }
+    /** 当前估算网速（bps），用于缓冲提示 */
+    var netSpeed by remember { mutableLongStateOf(0L) }
 
     // 正在播放的是第几集（在当前源的分集里找）
     val playingIndex = activeUrls.indexOf(playUrl)
@@ -211,6 +253,17 @@ private fun PlayerScreen(
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
         val dataSource = androidx.media3.datasource.DefaultDataSource.Factory(context, httpFactory)
+        // 最大缓存：把各档缓冲时长大幅拉长，弱网下也不容易一卡就停
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                60_000,   // 最小缓冲
+                300_000,  // 最大缓冲
+                5_000,    // 起播前缓冲
+                10_000    // 卡顿后重新起播所需缓冲
+            )
+            .setTargetBufferBytes(androidx.media3.common.C.LENGTH_UNSET) // 不限目标字节数
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
         ExoPlayer.Builder(context)
             // 关键：用 DefaultMediaSourceFactory 而不是只给 HlsMediaSource。
             // 只挂 HLS 时，任何非 m3u8 的地址（mp4/mkv/无扩展名的直链）
@@ -218,8 +271,9 @@ private fun PlayerScreen(
             .setMediaSourceFactory(
                 androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSource)
             )
+            .setLoadControl(loadControl)
             .build()
-            .apply { playWhenReady = true }
+            .apply { playWhenReady = !isMeteredNetwork(context) }
     }
 
     val toggleFullscreen = rememberUpdatedState { fullscreen = !fullscreen }
@@ -304,6 +358,22 @@ private fun PlayerScreen(
         onDispose { saveProgress() }
     }
 
+    // 实时网速：用 AnalyticsListener 的带宽估算，缓冲提示里显示
+    DisposableEffect(Unit) {
+        val al = object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+            override fun onBandwidthEstimate(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                totalLoadTimeMs: Int,
+                totalBytesLoaded: Long,
+                bitrateEstimate: Long
+            ) {
+                if (bitrateEstimate > 0) netSpeed = bitrateEstimate
+            }
+        }
+        player.addAnalyticsListener(al)
+        onDispose { player.removeAnalyticsListener(al) }
+    }
+
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
             override fun onPlayerError(e: PlaybackException) {
@@ -329,6 +399,7 @@ private fun PlayerScreen(
 
     // 全屏切换：横屏 + 隐藏状态栏
     DisposableEffect(fullscreen) {
+        (context as? PlayerActivity)?.fullscreenNow = fullscreen
         activity?.requestedOrientation = if (fullscreen) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         } else {
@@ -341,7 +412,12 @@ private fun PlayerScreen(
         onDispose { }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    // 播放页背景跟随自定义背景（视频区本身仍是黑的，透出的是下方集数区域）
+    Box(modifier = Modifier.fillMaxSize().background(LocalBg.current)) {
+        if (!fullscreen && prefs.bgPath.isNotEmpty()) {
+            com.yetvplus.nativeapp.ui.screens.AppBackground(prefs.bgPath, prefs.bgDim)
+        }
+
         if (fullscreen) {
             // ---- 全屏 ----
             Box(modifier = Modifier.fillMaxSize()) {
@@ -366,10 +442,12 @@ private fun PlayerScreen(
                     episodeName = activeNames.getOrNull(if (playingIndex >= 0) playingIndex else index) ?: "",
                     showTopBar = true,
                     onClose = onClose,
-                    onToggleFullscreen = { toggleFullscreen.value(); showControls() }
+                    locked = locked,
+                    onToggleFullscreen = { toggleFullscreen.value(); showControls() },
+                    onToggleLock = { locked = !locked; showControls() }
                 )
                 if (speeding) FastForwardHint(Modifier.matchParentSize())
-                if (loading && error.isEmpty()) LoadingHint(loadStep, Modifier.matchParentSize())
+                if (loading && error.isEmpty()) LoadingHint(loadStep, netSpeed, Modifier.matchParentSize())
                 if (error.isNotEmpty()) ErrorOverlay(error, Modifier.matchParentSize())
             }
         } else {
@@ -406,10 +484,12 @@ private fun PlayerScreen(
                         episodeName = activeNames.getOrNull(if (playingIndex >= 0) playingIndex else index) ?: "",
                         showTopBar = true,
                         onClose = onClose,
-                        onToggleFullscreen = { toggleFullscreen.value(); showControls() }
+                        locked = locked,
+                        onToggleFullscreen = { toggleFullscreen.value(); showControls() },
+                        onToggleLock = { locked = !locked; showControls() }
                     )
                     if (speeding) FastForwardHint(Modifier.matchParentSize())
-                    if (loading && error.isEmpty()) LoadingHint(loadStep, Modifier.matchParentSize())
+                    if (loading && error.isEmpty()) LoadingHint(loadStep, netSpeed, Modifier.matchParentSize())
                     if (error.isNotEmpty()) ErrorOverlay(error, Modifier.matchParentSize())
                 }
 
@@ -589,8 +669,10 @@ private fun PlayerOverlay(
     title: String,
     episodeName: String,
     showTopBar: Boolean,
+    locked: Boolean = false,
     onClose: () -> Unit,
-    onToggleFullscreen: () -> Unit
+    onToggleFullscreen: () -> Unit,
+    onToggleLock: () -> Unit = {}
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -602,8 +684,8 @@ private fun PlayerOverlay(
         exit = fadeOut(tween(180))
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // 顶部
-            if (showTopBar) {
+            // 顶部（锁定时一并隐藏）
+            if (showTopBar && !locked) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -624,8 +706,19 @@ private fun PlayerOverlay(
                 }
             }
 
-            // 底部控制条
-            Row(
+            // 锁定：只在右侧显示锁按钮，进度条 / 暂停 / 时间全部隐藏
+            if (locked) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 8.dp)
+                ) {
+                    LockButton(locked = true, onClick = onToggleLock)
+                }
+            }
+
+            // 底部控制条（锁定时整体不显示）
+            if (!locked) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
@@ -671,8 +764,28 @@ private fun PlayerOverlay(
                         tint = Color.White
                     )
                 }
+
+                // 锁定按钮：只在横屏（全屏）时出现在控制条右侧
+                if (fullscreen) {
+                    LockButton(locked = false, onClick = onToggleLock)
+                }
             }
         }
+    }
+}
+
+/**
+ * 锁定 / 解锁按钮。
+ * 锁定后点击视频只出现这一个按钮，进度条、暂停等都隐藏，避免误触。
+ */
+@Composable
+private fun LockButton(locked: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            if (locked) Icons.Default.Lock else Icons.Default.LockOpen,
+            contentDescription = if (locked) "解锁" else "锁定",
+            tint = Color.White
+        )
     }
 }
 
@@ -749,7 +862,8 @@ private fun PlayerProgressBar(
                     modifier = Modifier
                         .fillMaxWidth(bufferedFrac)
                         .fillMaxHeight()
-                        .background(Color.White.copy(alpha = 0.45f))
+                        // 已缓存但未播放：亮一点的白色，和已播放（主色）区分开
+                        .background(Color.White.copy(alpha = 0.62f))
                 )
                 Box(
                     modifier = Modifier
@@ -811,6 +925,17 @@ private fun PlayerProgressBar(
     }
 }
 
+/** 当前是否走移动数据（计费网络） */
+private fun isMeteredNetwork(context: android.content.Context): Boolean {
+    return try {
+        val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                as? android.net.ConnectivityManager ?: return false
+        cm.isActiveNetworkMetered
+    } catch (e: Exception) {
+        false
+    }
+}
+
 private fun formatTime(ms: Long): String {
     if (ms <= 0) return "00:00"
     val total = ms / 1000
@@ -825,7 +950,7 @@ private fun formatTime(ms: Long): String {
 
 /** 开始加载时的步骤提示 + 转圈 */
 @Composable
-private fun LoadingHint(step: String, modifier: Modifier = Modifier) {
+private fun LoadingHint(step: String, speedBps: Long = 0L, modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(
@@ -842,8 +967,28 @@ private fun LoadingHint(step: String, modifier: Modifier = Modifier) {
                     .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                     .padding(horizontal = 12.dp, vertical = 5.dp)
             )
+            // 缓冲中顺带显示当前网速，卡住时方便判断是网速问题还是源的问题
+            if (speedBps > 0) {
+                Text(
+                    formatSpeed(speedBps),
+                    color = Color(0xCCFFFFFF),
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                )
+            }
         }
     }
+}
+
+/** 把 bps 转成易读的网速文本 */
+private fun formatSpeed(bps: Long): String {
+    if (bps <= 0) return ""
+    val kb = bps / 1024.0
+    return if (kb >= 1024) String.format("%.2f MB/s", kb / 1024.0)
+    else String.format("%.0f KB/s", kb)
 }
 
 /** 长按快进中的提示 */

@@ -101,6 +101,21 @@ private val TV_TAGS = listOf(
     "热门", "美剧", "英剧", "韩剧", "日剧", "国产剧", "港剧", "日本动画", "综艺", "纪录片"
 )
 
+/** 大栏目：电影 / 电视剧之外再补几个常见分类 */
+private val MAIN_TYPES = listOf("电影", "电视剧", "动漫", "综艺", "纪录片")
+
+/** 大栏目对应的接口 type 参数 */
+private val TYPE_KEYS = listOf("movie", "tv", "animation", "show", "documentary")
+
+/** 各大栏目下的子栏目 */
+private val TAGS_BY_TYPE = mapOf(
+    "movie" to MOVIE_TAGS,
+    "tv" to TV_TAGS,
+    "animation" to listOf("热门", "国产动画", "日本动画", "欧美动画", "剧场版"),
+    "show" to listOf("热门", "国内综艺", "国外综艺", "音乐", "脱口秀"),
+    "documentary" to listOf("热门", "人文", "自然", "历史", "科技")
+)
+
 @Composable
 fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
     var mediaType by remember { mutableIntStateOf(0) } // 0 电影 1 剧集
@@ -114,8 +129,8 @@ fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
     var page by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    val tags = if (mediaType == 0) MOVIE_TAGS else TV_TAGS
-    val type = if (mediaType == 0) "movie" else "tv"
+    val type = TYPE_KEYS.getOrNull(mediaType) ?: "movie"
+    val tags = TAGS_BY_TYPE[type] ?: MOVIE_TAGS
     val tag = tags.getOrNull(tagIndex) ?: "热门"
 
     fun load(reset: Boolean) {
@@ -163,7 +178,7 @@ fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         // 大栏目与子栏目用同一套水平内边距，保证左端对齐
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            ChipTabs(listOf("电影", "电视剧"), mediaType) {
+            ChipTabs(MAIN_TYPES, mediaType) {
                 if (it != mediaType) { mediaType = it; tagIndex = 0 }
             }
             Spacer(modifier = Modifier.height(6.dp))
@@ -409,7 +424,7 @@ fun MineScreen(
                     color = LocalTextPrimary.current,
                     fontSize = 15.sp
                 )
-                if (prefs.role.isNotEmpty()) {
+                if (UiState.roleState.value.isNotEmpty()) {
                     Text("角色：${prefs.role}", color = LocalTextSecondary.current, fontSize = 12.sp,
                         modifier = Modifier.padding(top = 4.dp))
                 }
@@ -419,6 +434,8 @@ fun MineScreen(
                         scope.launch {
                             runCatching { app.repo.logout() }
                             prefs.logout()
+                            // 同步清空可观察角色，否则底部「管理」入口不会消失
+                            UiState.setRole("")
                             busy = false
                             onLogout()
                         }

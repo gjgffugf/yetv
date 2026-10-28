@@ -201,7 +201,7 @@ class ApiClient(private val context: Context) {
         try {
             val json = java.net.URLDecoder.decode(raw, "UTF-8")
             val o = gson.fromJson(json, JsonObject::class.java) ?: return
-            if (o.has("role")) prefs.role = o.get("role").asString
+            if (o.has("role")) saveRole(o.get("role").asString)
             if (o.has("username")) {
                 val u = o.get("username").asString
                 if (u.isNotEmpty()) prefs.username = u
@@ -211,9 +211,20 @@ class ApiClient(private val context: Context) {
         }
     }
 
-    /** 写入角色（owner / admin / user）。供 Repo 在拿到接口 Role 后回填 */
+    /**
+     * 写入角色（owner / admin / user）。供 Repo 在拿到接口 Role 后回填。
+     * 同时更新可观察状态，底部 Dock 立刻增删「管理」入口。
+     */
     fun saveRole(role: String) {
-        if (role.isNotBlank()) prefs.role = role
+        if (role.isBlank()) return
+        prefs.role = role
+        com.yetvplus.nativeapp.ui.UiState.setRole(role)
+    }
+
+    /** 退出登录等场景清空角色 */
+    fun clearRole() {
+        prefs.role = ""
+        com.yetvplus.nativeapp.ui.UiState.setRole("")
     }
 
     companion object {
