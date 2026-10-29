@@ -101,20 +101,29 @@ private val TV_TAGS = listOf(
     "热门", "美剧", "英剧", "韩剧", "日剧", "国产剧", "港剧", "日本动画", "综艺", "纪录片"
 )
 
-/** 大栏目：电影 / 电视剧之外再补几个常见分类 */
-private val MAIN_TYPES = listOf("电影", "电视剧", "动漫", "综艺", "纪录片")
-
-/** 大栏目对应的接口 type 参数 */
-private val TYPE_KEYS = listOf("movie", "tv", "animation", "show", "documentary")
-
-/** 各大栏目下的子栏目 */
-private val TAGS_BY_TYPE = mapOf(
-    "movie" to MOVIE_TAGS,
-    "tv" to TV_TAGS,
-    "animation" to listOf("热门", "国产动画", "日本动画", "欧美动画", "剧场版"),
-    "show" to listOf("热门", "国内综艺", "国外综艺", "音乐", "脱口秀"),
-    "documentary" to listOf("热门", "人文", "自然", "历史", "科技")
+/**
+ * 大栏目定义。
+ *
+ * 重要：豆瓣接口**只认 movie 和 tv 两种 type**，
+ * 之前凭空写的 animation / show / documentary 站点根本不认识，一律返回空。
+ * 动漫 / 综艺 / 纪录片在豆瓣体系里其实都挂在 tv 下，靠不同的 tag 区分。
+ */
+private data class MainSection(
+    val name: String,
+    val type: String,          // 只能是 "movie" 或 "tv"
+    val tags: List<String>
 )
+
+private val MAIN_SECTIONS = listOf(
+    MainSection("电影", "movie", MOVIE_TAGS),
+    MainSection("电视剧", "tv", TV_TAGS),
+    // 下面三个都用 tv，靠 tag 区分 —— 这些 tag 是豆瓣实际存在的
+    MainSection("动漫", "tv", listOf("日本动画", "国产动画", "动画")),
+    MainSection("综艺", "tv", listOf("综艺", "脱口秀")),
+    MainSection("纪录片", "tv", listOf("纪录片", "人文"))
+)
+
+private val MAIN_TYPES = MAIN_SECTIONS.map { it.name }
 
 @Composable
 fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
@@ -129,11 +138,18 @@ fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
     var page by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    val type = TYPE_KEYS.getOrNull(mediaType) ?: "movie"
-    val tags = TAGS_BY_TYPE[type] ?: MOVIE_TAGS
-    val tag = tags.getOrNull(tagIndex) ?: "热门"
+    val section = MAIN_SECTIONS.getOrNull(mediaType) ?: MAIN_SECTIONS[0]
+    val type = section.type
+    val tags = section.tags
+    val tag = tags.getOrNull(tagIndex) ?: tags[0]
 
-    fun load(reset: Boolean) {
+    /**
+     * 加载当前栏目。
+     *
+     * 带一层保护：如果这个 tag 站点返回空（比如某些冷门标签没数据），
+     * 自动回退到该栏目的第一个标签再试一次，避免用户看到一片空白。
+     */
+    fun load(reset: Boolean, fallbackTag: String? = null) {
         if (reset) {
             page = 0
             items.clear()
@@ -144,8 +160,9 @@ fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
             loadingMore = true
         }
         val wantPage = page
+        val useTag = fallbackTag ?: tag
         scope.launch {
-            val res = runCatching { app.repo.douban(type, tag, PAGE_SIZE, wantPage * PAGE_SIZE) }
+            val res = runCatching { app.repo.douban(type, useTag, PAGE_SIZE, wantPage * PAGE_SIZE) }
             if (reset) loading = false else loadingMore = false
             if (res.isSuccess) {
                 val list = res.getOrElse { emptyList() }
@@ -153,11 +170,18 @@ fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
                 // 去重后追加
                 val known = items.map { it.id }.toSet()
                 items.addAll(list.filter { it.id !in known })
+
+                // 空结果且还没回退过 → 用该栏目第一个标签再试一次
+                if (items.isEmpty() && fallbackTag == null && useTag != tags[0]) {
+                    load(reset = true, fallbackTag = tags[0])
+                    return@launch
+                }
+
                 if (items.isEmpty()) {
                     error = if (app.api.lastUnauthorized) {
                         "站点要求登录（401），请到「我的」登录后再看"
                     } else {
-                        "暂无数据，请检查站点配置或网络"
+                        "暂无数据，可点下方按钮重试或换个子栏目"
                     }
                 }
             } else {
