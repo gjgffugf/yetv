@@ -302,7 +302,10 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
                             putExtra("title", item.title.ifEmpty { base.title })
                             putExtra("videoKey", base.key)
                             putExtra("total", episodes.size)
-                            putExtra("poster", item.poster.ifEmpty { base.poster })
+                            // 三层兜底：当前源 → 首选源 → 首页带来的豆瓣海报。
+                            // 之前只取前两层，从首页点进来时经常是空的，
+                            // 于是播放页写进观看记录的 poster 也是空的 —— 这就是历史记录没海报的原因。
+                            putExtra("poster", poster)
                             // 详情页选的是哪个源，播放器就从哪个源开始播
                             putExtra("variantIndex", variantIndex)
                             PlayerArgs.variants = variants.toList()

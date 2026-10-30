@@ -480,6 +480,260 @@ fun AppBackground(...) { ... }               // ← 函数反而没了 @Composab
 > 如果「国产动画」这类标签你站点仍返回空，说明豆瓣代理端没收录，
 > 把该标签从 `MainSection` 里删掉即可，其余不受影响。
 
+
+## 二·廿二、本轮改动（v1.0.5）
+
+| 项 | 说明 |
+|---|---|
+| 令牌过期自动退出 | 站点返回 401 时 `ApiClient` 置 `UiState.sessionExpired`，主页清登录态并跳登录页 |
+| 历史记录海报 | 详情页传 poster 时漏了豆瓣兜底，导致写入记录的 poster 为空；历史卡片另加 `DefaultPoster` 占位 |
+| 切栏目串数据 | 切栏目时旧请求还在跑（CF 常十几秒），回来后把旧数据 addAll 进新列表。加 `generation` 代次校验，过期结果直接丢弃 |
+| 注册开关联动 | 启动加载拉 `EnableRegistration` 存本地；管理页保存站点配置时同步，登录页立即显示注册入口 |
+| OIDC 登录 | 管理页新增 OIDC 配置卡片（启用 / 按钮文字 / 授权地址），开启后登录页出现对应按钮，点击用浏览器打开 |
+| 启动加载页 | 中间上方图标或视频、中间应用名、底部进度条 + 步骤文案（正在连接服务器 → 加载注册配置） |
+
+### 启动加载页
+
+- **72 小时缓存**：完成后记录时间戳，72 小时内不再显示，直接进主页
+- 素材（动态查找，不放也能编译）：
+  - `res/drawable-nodpi/splash_image.png`（或 .jpg）开屏图
+  - `res/raw/splash_video.mp4` 开屏视频
+  - `res/drawable-nodpi/splash_icon.png`（或 .jpg）启动图标
+- 优先级：视频 > 图片 > 图标 > 转圈
+
+> OIDC 的启用开关保存在本机；站点侧的 Issuer / ClientId 等仍需服务端配置，
+> 这里只负责「是否显示入口」和跳转授权地址。
+
+
+## 二·廿三、本地编译（Termux / Linux）报 HasConvention
+
+### 现象
+
+```
+gradle assembleDebug
+...
+org.gradle.api.internal.HasConvention
+Kotlin Gradle plugin 属性 buildFlowServiceProperty 查询失败
+BUILD FAILED
+```
+
+### 根因：用了系统 `gradle`，没用 `./gradlew`
+
+直接敲 `gradle` 调用的是系统安装的版本（Termux 里 `pkg install gradle` 装的版本
+往往过老或过新），而 **Kotlin Gradle Plugin 1.9.10 只与特定 Gradle 版本兼容**。
+插件在错误的 Gradle 上加载失败，就抛 `HasConvention` 这类 Gradle 内部类错误。
+
+本项目锁定的组合（**三者必须同时匹配**）：
+
+| 组件 | 版本 |
+|---|---|
+| Gradle（wrapper） | **8.2** |
+| AGP | 8.1.4 |
+| Kotlin / Compose Compiler | 1.9.10 / 1.5.3 |
+
+### 正确做法
+
+```bash
+bash build.sh            # 内部一律走 ./gradlew，并先做环境自检
+# 或
+./gradlew assembleDebug
+```
+
+`build.sh` 会检查 JDK 版本（AGP 8.1.4 要求 **JDK 17**）、`ANDROID_HOME`、
+wrapper 版本，并在检测到系统 gradle 时提醒不要用。
+
+### Termux 额外注意
+
+1. **JDK 必须是 17**：`pkg install openjdk-17`，并 `export JAVA_HOME=...`
+2. **Android SDK**：Termux 没有官方 SDK，需自行准备；aapt2 是 x86_64 二进制，
+   在 aarch64 上通常可运行，但可能缺 `libc++` 等依赖
+3. **内存**：wrapper 已提到 `-Xmx2048m`，Termux 内存不足时仍可能 OOM
+
+> 如果只是想拿 APK，**推荐直接用 GitHub Actions**（仓库里的 `build-apk.yml`），
+> 不用在本地折腾环境。
+
+
+## 二·廿四、编译提示"没权限"怎么办
+
+### 情形一：`./gradlew: Permission denied`
+
+解压或拷贝过程中丢了执行位。三种解法，任选：
+
+```bash
+chmod +x gradlew          # ① 补执行位（首选）
+sh gradlew assembleDebug  # ② 交给 sh 解释，完全不需要执行位
+bash build.sh             # ③ 脚本自动处理，最省事
+```
+
+`build.sh` 已内置这段逻辑：先尝试 `chmod +x`，不行就自动退化成 `sh gradlew`。
+
+### 情形二：chmod 也救不了 —— 项目放在了 /sdcard
+
+```bash
+chmod +x gradlew        # 没报错
+./gradlew assembleDebug # 依然 Permission denied
+```
+
+**这是 Android 上最常见的坑**：`/sdcard`、`/storage` 这些共享存储挂载时带 **`noexec`**，
+整个分区上的脚本都不可执行，chmod 改不动。
+
+把项目移出共享存储即可：
+
+```bash
+cp -r /sdcard/yetv ~/yetv
+cd ~/yetv
+bash build.sh
+```
+
+`build.sh` 检测到项目在 `/sdcard`、`/storage`、`/mnt/sdcard` 下会直接报错并给出这条指引。
+
+### 情形三：Termux 读写存储被拒
+
+```bash
+termux-setup-storage     # 授权后重开终端
+```
+
+### 情形四：推送到 GitHub 后 Actions 里报权限
+
+Git 只有在首次 add 时记录执行位，本地补了也要让 Git 知道：
+
+```bash
+git update-index --chmod=+x gradlew
+git commit -m "fix: gradlew 执行位"
+git push
+```
+
+（仓库里的 `build-apk.yml` 本身已有 `chmod +x ./gradlew`，所以 Actions 通常不受影响；
+这条只在你想彻底修正仓库记录时才需要。）
+
+
+## 二·廿五、官方源下载慢 / 超时
+
+编译时要下载三类东西：Gradle 分发包、Android 插件、各种依赖库。
+官方源（services.gradle.org、dl.google.com、repo1.maven.org）在国内经常很慢或直接超时。
+
+本项目已默认配置国内镜像，**不需要你手动改**：
+
+### ① Gradle 分发包 → 腾讯镜像
+
+`gradle/wrapper/gradle-wrapper.properties`：
+
+```
+distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-8.2-bin.zip
+```
+
+想换回官方源，把域名改回 `services.gradle.org` 即可（注释里已写明）。
+
+### ② Maven 依赖 → 阿里云镜像
+
+`settings.gradle.kts` 里在官方源**之前**加了阿里云：
+
+| 仓库 | 镜像地址 |
+|---|---|
+| Google | `https://maven.aliyun.com/repository/google` |
+| Gradle 插件 | `https://maven.aliyun.com/repository/gradle-plugin` |
+| Maven Central | `https://maven.aliyun.com/repository/public` |
+
+**官方源保留在后面**：阿里云偶尔缺包或同步延迟时会自动回退到官方源，
+不会出现"镜像没有就整个编译失败"。
+
+### ③ GitHub Actions 启用 Gradle 缓存
+
+工作流里已加 `gradle/actions/setup-gradle@v3` 的缓存配置。
+**第一次构建仍然要下载（慢是正常的），之后走缓存，通常一两分钟就完事。**
+
+### 仍然很慢时的备选
+
+- 换镜像源：华为 `https://repo.huaweicloud.com/repository/maven/`、
+  腾讯云 `https://mirrors.cloud.tencent.com/nexus/repository/maven-public/`
+- Actions 时段：国内深夜到清晨 GitHub 出口通常更快
+- 终极方案：本地配好代理后 `./gradlew` 一次，再把 `~/.gradle` 打包带回
+
+
+## 二·廿六、编译修复（v1.0.5）
+
+本轮日志里 5 个文件报错，其实是 **3 个根因**带出的连锁反应。
+
+### ① Conflicting declarations + Overload resolution ambiguity
+
+```kotlin
+// Prefs.kt 里 registerEnabled 被声明了两次
+var registerEnabled  // 第一处（原有）
+var registerEnabled  // 第二处（新增 OIDC 时误加）
+```
+
+Kotlin 一个类里不允许同名属性 → `Conflicting declarations`；
+同时**任何读取它的地方**（ApiClient、AdminScreen 等）都变成两个候选 →
+`Overload resolution ambiguity`。所以日志里看着有 5 个文件出错，实际源头只有一个。
+
+**修法**：删掉重复的那份，只保留一处。
+
+### ② Unresolved reference: context
+
+`LoginScreen` 里 OIDC 按钮用了 `context.startActivity(...)`，
+但这个函数里压根没定义 `context`。
+
+**修法**：函数开头补 `val context = LocalContext.current`。
+
+### ③ Cannot find a parameter with this name
+
+```kotlin
+YETVTheme(darkMode = ...)   // ✗ 参数名不对
+```
+
+`Theme.kt` 里 `YETVTheme(brandColor: Color, dark: Boolean, content: ...)`，
+参数名是 **`dark`** 不是 `darkMode`。
+
+**修法**：改成 `YETVTheme(dark = ...)`。
+
+### 自检新增规则
+
+为避免同类问题再漏，加了三条检测：
+
+| 检测 | 防的问题 |
+|---|---|
+| **类内成员重复声明** | Conflicting declarations |
+| **同包跨文件同名顶层符号** | 跨文件 Conflicting declarations |
+| **自定义函数调用的命名参数 vs 定义** | Cannot find a parameter |
+
+
+## 二·廿七、编译修复（v1.0.5）
+
+### ① ApiClient.kt:159 "Expecting a member declaration"
+
+插入 `markUnauthorized()` 时，把原本属于 `lastUnauthorized` 的 `private set`
+隔在了函数体后面，变成一个孤立的 `private set` —— 它不属于任何属性，语法非法。
+
+```kotlin
+var lastUnauthorized: Boolean = false
+private fun markUnauthorized() { ... }
+    private set          // ← 孤儿，删掉
+```
+
+### ② UiState.kt:55 MutableState 缺 getValue
+
+```kotlin
+var sessionExpired by mutableStateOf(false)   // object 内
+```
+
+`by` 委托要的是**运算符扩展** `getValue` / `setValue`，必须显式 import，
+它们不会跟着 `mutableStateOf` 自动进来。
+
+```kotlin
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+```
+
+> 注意：`by lazy` 是 Kotlin 标准库的委托，**不需要**这两个 import，
+> 别误加（加了不会报错，但会让"缺导入"检测产生误报）。
+
+### 自检新增规则
+
+| 检测 | 防的问题 |
+|---|---|
+| **孤立 `private set` / `get`** | Expecting a member declaration |
+| **`by` 委托必须配 getValue / setValue** | MutableState 缺方法 |
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

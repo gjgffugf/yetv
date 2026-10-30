@@ -183,6 +183,21 @@ private fun AppRoot() {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as YETVApp
     val navController = rememberNavController()
 
+    // 令牌过期：站点返回 401 后强制退出登录并回到登录页
+    LaunchedEffect(UiState.sessionExpired) {
+        if (UiState.sessionExpired) {
+            runCatching { app.repo.logout() }
+            app.prefs.logout()
+            app.api.clearRole()
+            UiState.setRole("")
+            UiState.sessionExpired = false
+            navController.navigate(Route.LOGIN) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
     // 角色：只有 owner / admin 才显示「管理」，普通用户不显示。
     // 用 UiState.roleState 这个可观察状态，任何地方改了都会立刻反映到 Dock。
     val role = UiState.roleState.value

@@ -136,6 +136,13 @@ fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
     var retry by remember { mutableIntStateOf(0) }
     // 当前子栏目已加载到的页码（每页 24 条）
     var page by remember { mutableIntStateOf(0) }
+    /**
+     * 请求代次。每次发起新请求 +1，协程回来时对比，不是最新一代就直接丢弃。
+     *
+     * 这是「切到国产动画却显示上一页数据」的根因：切换栏目时上一个请求还在跑
+     * （Cloudflare 经常要十几秒），旧协程完成后把旧数据 addAll 进了新列表。
+     */
+    var generation by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     val section = MAIN_SECTIONS.getOrNull(mediaType) ?: MAIN_SECTIONS[0]
@@ -161,18 +168,24 @@ fun HomeScreen(app: YETVApp, onOpen: (DoubanItem) -> Unit) {
         }
         val wantPage = page
         val useTag = fallbackTag ?: tag
+        val myGen = ++generation      // 抢占代次：之后发起的请求会让旧协程失效
+        val myType = type
         scope.launch {
-            val res = runCatching { app.repo.douban(type, useTag, PAGE_SIZE, wantPage * PAGE_SIZE) }
+            val res = runCatching { app.repo.douban(myType, useTag, PAGE_SIZE, wantPage * PAGE_SIZE) }
+            // 已经有更新的请求了，本次结果作废（否则会把上一个栏目的数据写进来）
+            if (myGen != generation) return@launch
             if (reset) loading = false else loadingMore = false
             if (res.isSuccess) {
                 val list = res.getOrElse { emptyList() }
                 if (reset) items.clear()
                 // 去重后追加
+                if (myGen != generation) return@launch
                 val known = items.map { it.id }.toSet()
                 items.addAll(list.filter { it.id !in known })
 
                 // 空结果且还没回退过 → 用该栏目第一个标签再试一次
                 if (items.isEmpty() && fallbackTag == null && useTag != tags[0]) {
+                    // 回退重试：沿用当前代次，属于同一次用户操作
                     load(reset = true, fallbackTag = tags[0])
                     return@launch
                 }
@@ -536,8 +549,13 @@ fun MineScreen(
                                             .build(),
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        // 加载中和失败都显示默认海报，不再是一片空白
+                                        loading = { DefaultPoster() },
+                                        error = { DefaultPoster() }
                                     )
+                                } else {
+                                    DefaultPoster()
                                 }
                             }
                             Column(

@@ -69,6 +69,10 @@ jobs:
 
       - name: 缓存 Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          # 缓存 Gradle 依赖与构建产物：第二次构建起几乎不用重新下载，
+          # 这是解决「下载慢」最有效的一招（首次仍要下，之后走缓存）
+          cache-read-only: false
 
       - name: 校验固定签名库
         run: |

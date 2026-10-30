@@ -132,7 +132,7 @@ class ApiClient(private val context: Context) {
             .build()
 
         client().newCall(req).execute().use { resp ->
-            lastUnauthorized = resp.code == 401
+            if (resp.code == 401) markUnauthorized() else lastUnauthorized = false
             val body = resp.body?.string() ?: return null
             if (!resp.isSuccessful) return null
             return try {
@@ -145,7 +145,17 @@ class ApiClient(private val context: Context) {
 
     /** 上一次请求是否被 middleware 判为未登录（401） */
     var lastUnauthorized: Boolean = false
-        private set
+
+    /**
+     * 401 回调。令牌过期时通知界面层强制退出登录。
+     * 用可观察状态传递，避免在 data 层直接持有 Activity 引用。
+     */
+    private fun markUnauthorized() {
+        lastUnauthorized = true
+        if (prefs.isLoggedIn()) {
+            com.yetvplus.nativeapp.ui.UiState.sessionExpired = true
+        }
+    }
 
     // ---------------- POST ----------------
 

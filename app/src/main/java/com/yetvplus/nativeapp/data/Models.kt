@@ -524,6 +524,10 @@ object Mapping {
                 "AllowRegister", "allowRegister", default = false
             ),
             enableComments = asBool(sc, "EnableComments", "enableComments", default = false),
+            requireInvite = asBool(
+                sc, "RequireRegistrationInviteCode", "requireRegistrationInviteCode",
+                default = false
+            ),
             doubanProxy = pick(sc, "DoubanProxy", "doubanProxy"),
             imageProxy = pick(sc, "DoubanImageProxy", "imageProxy", "ImageProxy"),
             storageType = storageType,
@@ -541,7 +545,9 @@ data class SiteConfig(
     val doubanProxy: String = "",
     val imageProxy: String = "",
     val storageType: String = "",
-    val singlePasswordMode: Boolean = false
+    val singlePasswordMode: Boolean = false,
+    /** 注册是否需要邀请码 */
+    val requireInvite: Boolean = false
 )
 
 // ---------------- 弹幕 ----------------

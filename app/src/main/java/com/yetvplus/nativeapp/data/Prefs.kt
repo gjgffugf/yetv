@@ -272,6 +272,39 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("bg_enabled", false)
         set(value) = sp.edit().putBoolean("bg_enabled", value).apply()
 
+    /**
+     * 上次完成启动加载的时间戳。
+     * 72 小时内不再显示启动加载页，直接进主页。
+     */
+    var splashLoadedAt: Long
+        get() = sp.getLong("splash_loaded_at", 0L)
+        set(value) = sp.edit().putLong("splash_loaded_at", value).apply()
+
+    /** 启动加载页缓存有效期：72 小时 */
+    val splashValid: Boolean
+        get() = System.currentTimeMillis() - splashLoadedAt < 72 * 60 * 60 * 1000L
+
+    /** 站点是否开放注册（来自 /api/server-config 的 EnableRegistration） */
+    /** 是否需要注册邀请码 */
+    var registerNeedInvite: Boolean
+        get() = sp.getBoolean("reg_invite", false)
+        set(value) = sp.edit().putBoolean("reg_invite", value).apply()
+
+    /** OIDC 登录是否开启（管理页配置，本地保存） */
+    var oidcEnabled: Boolean
+        get() = sp.getBoolean("oidc_enabled", false)
+        set(value) = sp.edit().putBoolean("oidc_enabled", value).apply()
+
+    /** OIDC 按钮文字 */
+    var oidcButtonText: String
+        get() = sp.getString("oidc_text", "其他登录") ?: "其他登录"
+        set(value) = sp.edit().putString("oidc_text", value).apply()
+
+    /** OIDC 授权地址（登录页点按钮后用浏览器打开） */
+    var oidcAuthUrl: String
+        get() = sp.getString("oidc_auth", "") ?: ""
+        set(value) = sp.edit().putString("oidc_auth", value).apply()
+
     var bgPath: String
         get() = sp.getString("bg_path", "") ?: ""
         set(value) = sp.edit().putString("bg_path", value).apply()

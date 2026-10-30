@@ -1,6 +1,8 @@
 package com.yetvplus.nativeapp.ui
 
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import com.yetvplus.nativeapp.data.VideoItem
 import com.yetvplus.nativeapp.data.SearchGroup
@@ -47,6 +49,12 @@ object UiState {
     fun setRole(role: String) {
         roleState.value = role
     }
+
+    /**
+     * 登录态是否已失效（站点返回 401）。
+     * 置为 true 后 MainActivity 会强制清登录态并退回登录页。
+     */
+    var sessionExpired by mutableStateOf(false)
 
     /** 搜索框当前文字 */
     var keyword: String = ""

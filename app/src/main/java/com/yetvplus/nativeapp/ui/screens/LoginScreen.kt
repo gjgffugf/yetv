@@ -30,6 +30,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -58,6 +62,7 @@ import com.yetvplus.nativeapp.ui.theme.LocalTextPrimary
 import com.yetvplus.nativeapp.ui.theme.LocalTextSecondary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
 
 /** 当前应用版本（与 build.gradle 保持一致） */
 const val APP_VERSION = "1.0.2"
@@ -78,6 +83,9 @@ const val APP_VERSION = "1.0.2"
 @Composable
 fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
     val prefs = app.prefs
+    // OIDC 按钮要用浏览器打开授权地址，需要 Context。
+    // 之前直接用 `context.startActivity` 但这个函数里没有 context，故报 Unresolved reference。
+    val context = LocalContext.current
 
     var username by remember { mutableStateOf(prefs.lastUsername) }
     var password by remember { mutableStateOf(if (prefs.rememberPassword) prefs.savedPassword else "") }
@@ -86,6 +94,12 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf(if (prefs.storageType.equals("localstorage", true)) 1 else 0) }
+
+    // 注册 / OIDC 开关：启动时从 Prefs 读一次，管理页改动通过 tick 同步
+    var regTick by remember { mutableIntStateOf(0) }
+    var oidcTick by remember { mutableIntStateOf(0) }
+    val registerOn = remember(regTick) { mutableStateOf(prefs.registerEnabled) }
+    val oidcOn = remember(oidcTick) { mutableStateOf(prefs.oidcEnabled) }
     var showRegister by remember { mutableStateOf(false) }
     var siteName by remember { mutableStateOf(prefs.siteName) }
     var announcement by remember { mutableStateOf(prefs.announcement) }
@@ -287,7 +301,8 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
                             }
                         }
 
-                        if (prefs.registerEnabled) {
+                        // 注册开关用可观察状态：管理页一改这里立刻出现，不用重启
+                        if (registerOn.value) {
                             Text(
                                 "没有账号？注册",
                                 color = LocalBrand.current,
@@ -296,6 +311,27 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
                                     .align(Alignment.CenterHorizontally)
                                     .clickable { showRegister = true; error = "" }
                             )
+                        }
+
+                        // OIDC 登录（管理页开启后出现，点按钮用浏览器打开授权页）
+                        if (oidcOn.value) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    val url = prefs.oidcAuthUrl
+                                    if (url.isNotBlank()) {
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                            )
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(prefs.oidcButtonText.ifEmpty { "其他登录" })
+                            }
                         }
                     }
                 }

@@ -61,6 +61,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import com.yetvplus.nativeapp.ui.theme.LocalSurfaceLight
+import androidx.compose.ui.text.font.FontWeight
 
 private val TABS = listOf("站点配置", "视频源", "分类", "用户", "高级")
 
@@ -174,12 +175,71 @@ private fun SiteTab(app: YETVApp) {
                     tip = runCatching { app.repo.saveSite(payload) }
                         .getOrElse { it.message ?: "保存失败" }
                         .ifEmpty { "已保存" }
+                    // 同步本地：登录页据此显示「没有账号？注册」
+                    app.prefs.registerEnabled = register
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("保存站点配置") }
 
         if (tip.isNotEmpty()) Text(tip, color = Color(0xFFFFC46B), fontSize = 13.sp)
+
+        // ---- OIDC 登录配置 ----
+        OidcCard(app)
+    }
+}
+
+/**
+ * OIDC 登录配置。
+ *
+ * 说明：这几项保存在**本机**，开启后登录页会出现对应按钮，点按钮用浏览器打开授权地址。
+ * 站点的 OIDC 参数（Issuer / ClientId 等）需要在服务端配置，这里只管「是否启用」和入口。
+ */
+@Composable
+private fun OidcCard(app: YETVApp) {
+    var enabled by remember { mutableStateOf(app.prefs.oidcEnabled) }
+    var text by remember { mutableStateOf(app.prefs.oidcButtonText) }
+    var url by remember { mutableStateOf(app.prefs.oidcAuthUrl) }
+    var tip by remember { mutableStateOf("") }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = LocalSurface.current),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("OIDC 登录", color = LocalTextPrimary.current, fontSize = 15.sp)
+            Text(
+                "开启后登录页会显示对应按钮，点击跳转到授权地址。",
+                color = LocalTextSecondary.current, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SwitchRow2("启用 OIDC 登录", enabled) { enabled = it }
+            OutlinedTextField(
+                value = text, onValueChange = { text = it },
+                label = { Text("按钮文字", fontSize = 13.sp) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = url, onValueChange = { url = it },
+                label = { Text("授权地址", fontSize = 13.sp) },
+                modifier = Modifier.fillMaxWidth(), minLines = 2
+            )
+            Button(
+                onClick = {
+                    app.prefs.oidcEnabled = enabled
+                    app.prefs.oidcButtonText = text.ifBlank { "其他登录" }
+                    app.prefs.oidcAuthUrl = url.trim()
+                    tip = "已保存，登录页已${if (enabled) "显示" else "隐藏"}该入口"
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("保存 OIDC 配置") }
+            if (tip.isNotEmpty()) {
+                Text(tip, color = Color(0xFFFFC46B), fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 6.dp))
+            }
+        }
     }
 }
 

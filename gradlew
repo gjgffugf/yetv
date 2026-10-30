@@ -9,4 +9,4 @@ else
     JAVACMD="java"
 fi
 
-exec "$JAVACMD" -Xmx1024m -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+exec "$JAVACMD" -Xmx2048m -Dfile.encoding=UTF-8 -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
