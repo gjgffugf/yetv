@@ -280,9 +280,9 @@ class Prefs(context: Context) {
         get() = sp.getLong("splash_loaded_at", 0L)
         set(value) = sp.edit().putLong("splash_loaded_at", value).apply()
 
-    /** 启动加载页缓存有效期：72 小时 */
+    /** 启动加载页缓存有效期：24 小时 */
     val splashValid: Boolean
-        get() = System.currentTimeMillis() - splashLoadedAt < 72 * 60 * 60 * 1000L
+        get() = System.currentTimeMillis() - splashLoadedAt < 24 * 60 * 60 * 1000L
 
     /** 站点是否开放注册（来自 /api/server-config 的 EnableRegistration） */
     /** 是否需要注册邀请码 */

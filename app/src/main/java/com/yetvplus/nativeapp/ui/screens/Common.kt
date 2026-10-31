@@ -216,7 +216,7 @@ fun DoubanCard(item: DoubanItem, onClick: () -> Unit) {
  * 两级都失败才显示占位底纹。
  */
 @Composable
-private fun PosterImage(url: String, ratio: Float, badge: String = "") {
+fun PosterImage(url: String, ratio: Float, badge: String = "") {
     val context = LocalContext.current
     val prefs = (context.applicationContext as YETVApp).prefs
     var useProxy by remember(url) { mutableStateOf(false) }
@@ -237,9 +237,12 @@ private fun PosterImage(url: String, ratio: Float, badge: String = "") {
         if (url.isEmpty()) {
             DefaultPoster()
         } else {
+            // 降采样：显式指定像素尺寸，避免下载并解码整张原图（豆瓣海报常 1000x1400+）
+            val dm = context.resources.displayMetrics.density
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(finalUrl)
+                    .size((116 * dm).toInt(), (116 * dm / ratio).toInt())
                     .crossfade(true)
                     .build(),
                 contentDescription = null,

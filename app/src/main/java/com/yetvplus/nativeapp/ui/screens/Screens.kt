@@ -541,32 +541,9 @@ fun MineScreen(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(LocalSurfaceLight.current)
                             ) {
-                                if (r.poster.isNotEmpty()) {
-                                    // 关键：显式指定目标尺寸，让 Coil 做降采样。
-                                    // 不指定的话会下载并解码**原图**（豆瓣海报常 1000x1400 以上），
-                                    // 而这里只要 46x64dp 的缩略图 —— 这就是历史记录海报慢的根因。
-                                    // 用 Android 原生的 displayMetrics 换算像素，
-                                    // 不依赖 LocalDensity / roundToPx（那两个在不同 Compose 版本里
-                                    // 包名与可见性有差异，容易 Unresolved reference）
-                                    val dm = LocalContext.current.resources.displayMetrics.density
-                                    val pxW = (46 * dm).toInt()
-                                    val pxH = (64 * dm).toInt()
-                                    SubcomposeAsyncImage(
-                                        model = ImageRequest.Builder(LocalContext.current)
-                                            .data(r.poster)
-                                            .size(pxW, pxH)
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize(),
-                                        // 加载中和失败都显示默认海报，不再是一片空白
-                                        loading = { DefaultPoster() },
-                                        error = { DefaultPoster() }
-                                    )
-                                } else {
-                                    DefaultPoster()
-                                }
+                                // 复用首页那套海报组件：自带降采样 + 直连失败自动走站点图片代理。
+                                // 之前这里直连豆瓣图床，被防盗链拦掉后就只剩占位图（"显示不出海报"）。
+                                PosterImage(url = r.poster, ratio = 46f / 64f)
                             }
                             Column(
                                 modifier = Modifier

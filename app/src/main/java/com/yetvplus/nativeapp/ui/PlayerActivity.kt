@@ -715,6 +715,33 @@ private fun PlayerOverlay(
                 ) {
                     LockButton(locked = true, onClick = onToggleLock)
                 }
+
+                // 锁定后底部仍保留一条 2px 的细进度条：
+                // 完全隐藏的话用户无法感知播放进度，但也不该显示完整控制条（会误触）
+                var lockPos by remember { mutableLongStateOf(0L) }
+                var lockDur by remember { mutableLongStateOf(0L) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        lockPos = player.currentPosition.coerceAtLeast(0L)
+                        lockDur = player.duration.takeIf { it > 0 } ?: 0L
+                        delay(300)
+                    }
+                }
+                val ratio = if (lockDur > 0) (lockPos.toFloat() / lockDur).coerceIn(0f, 1f) else 0f
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(Color.White.copy(alpha = 0.25f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fraction = ratio)
+                            .background(LocalBrand.current)
+                    )
+                }
             }
 
             // 底部控制条（锁定时整体不显示）

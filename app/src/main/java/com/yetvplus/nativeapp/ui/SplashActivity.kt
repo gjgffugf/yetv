@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,7 +62,7 @@ import kotlinx.coroutines.delay
  * 2. **启动加载**：依次完成「连接服务器」「加载注册配置」两步，
  *    显示进度条与当前步骤文案。
  *
- * **72 小时缓存**：上次完整加载后 72 小时内不再显示这个加载页，直接进主页。
+ * **24 小时缓存**：上次完整加载后 24 小时内不再显示这个加载页，直接进主页。
  *
  * 素材路径（动态查找，目录为空也能编译）：
  * - 开屏图片：`res/drawable-nodpi/splash_image.png`（或 .jpg）
@@ -73,7 +75,7 @@ class SplashActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val app = application as YETVApp
 
-        // 72 小时内已完成过加载 → 不显示加载页，直接进主页
+        // 24 小时内已完成过加载 → 不显示加载页，直接进主页
         if (app.prefs.splashValid) {
             goMain()
             return
@@ -92,6 +94,30 @@ class SplashActivity : ComponentActivity() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+    }
+}
+
+/**
+ * 把异常翻译成人能看懂的原因。
+ * 之前连不上服务器时静默跳过了，用户完全不知道发生了什么。
+ */
+private fun describeError(e: Throwable?): String {
+    if (e == null) return "连接失败（未知原因）"
+    val m = (e.message ?: "").lowercase()
+    return when {
+        m.contains("connection reset") || m.contains("connectionreset") ->
+            "连接被重置（Connection Reset）：服务器主动断开了连接"
+        m.contains("timeout") || m.contains("timed out") ->
+            "连接超时：服务器在规定时间内没有响应"
+        m.contains("failed to connect") || m.contains("unable to resolve") ||
+            m.contains("unknownhost") || m.contains("enameNotFound") ->
+            "无法连接：域名解析失败或服务器不可达"
+        m.contains("403") -> "访问被拒绝（403）：可能被网关策略拦截"
+        m.contains("401") -> "未授权（401）：登录态可能已失效"
+        m.contains("404") -> "接口不存在（404）：站点地址可能填错了"
+        m.contains("ssl") || m.contains("certificate") ->
+            "证书错误：HTTPS 校验未通过"
+        else -> "连接失败：${e.javaClass.simpleName} - ${e.message ?: "未知原因"}"
     }
 }
 
@@ -121,24 +147,41 @@ private fun SplashScreen(onDone: () -> Unit) {
         targetValue = progress, tween(300), label = "splashProgress"
     )
 
+    // 失败原因（连接被重置、超时等），非空时显示错误 + 重试按钮
+    var failReason by remember { mutableStateOf("") }
+    // 重试计数：点击「重试」+1，重新触发加载
+    var retryTick by remember { mutableIntStateOf(0) }
+
     // 真实执行两步加载
-    LaunchedEffect(Unit) {
+    LaunchedEffect(retryTick) {
+        failReason = ""
+        done = false
+        progress = 0.15f
+
         // 步骤 1：连接服务器（拿 server-config）
         step = 0
-        progress = 0.15f
-        val cfg = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { app.repo.serverConfig() }.getOrNull()
+        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { app.repo.serverConfig() }
         }
+        val cfg = result.getOrNull()
+
+        if (cfg == null) {
+            // 关键：连不上时**不再静默跳过**，把真实原因显示出来让用户重试
+            failReason = describeError(result.exceptionOrNull())
+            progress = 0.15f
+            return@LaunchedEffect
+        }
+
         progress = 0.55f
 
         // 步骤 2：加载注册配置（复用上面那份 server-config，不重复请求）
         step = 1
-        app.prefs.registerEnabled = cfg?.enableRegister ?: false
+        app.prefs.registerEnabled = cfg.enableRegister
         // 站点若要求邀请码，一并记下来
-        app.prefs.registerNeedInvite = cfg?.requireInvite == true
+        app.prefs.registerNeedInvite = cfg.requireInvite
         progress = 1f
 
-        // 记下完成时间，72 小时内不再显示
+        // 记下完成时间，24 小时内不再显示
         app.prefs.splashLoadedAt = System.currentTimeMillis()
 
         delay(260)
@@ -241,11 +284,35 @@ private fun SplashScreen(onDone: () -> Unit) {
                     trackColor = Color.White.copy(alpha = 0.18f)
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    SPLASH_STEPS.getOrNull(step) ?: "",
-                    color = LocalTextSecondary.current,
-                    fontSize = 12.sp
-                )
+
+                if (failReason.isNotEmpty()) {
+                    // 连接失败：显示真实原因 + 重试按钮，不再静默跳过
+                    Text(
+                        failReason,
+                        color = Color(0xFFFF8A80),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    OutlinedButton(
+                        onClick = { retryTick++ },
+                        shape = RoundedCornerShape(10.dp)
+                    ) { Text("重试", fontSize = 13.sp) }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "跳过",
+                        color = LocalTextSecondary.current,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clickable { onDone() }
+                            .padding(6.dp)
+                    )
+                } else {
+                    Text(
+                        SPLASH_STEPS.getOrNull(step) ?: "",
+                        color = LocalTextSecondary.current,
+                        fontSize = 12.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(56.dp))
