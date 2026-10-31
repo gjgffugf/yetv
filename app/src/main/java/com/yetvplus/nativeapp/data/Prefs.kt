@@ -8,7 +8,7 @@ class Prefs(context: Context) {
         .getSharedPreferences("yetvplus_native", Context.MODE_PRIVATE)
 
     companion object {
-        const val DEFAULT_BASE = "https://mtv.ffurry.cc.cd"
+        const val DEFAULT_BASE = "https://ytv.ffurry.cc.cd"
         /** 首页缓存有效期：24 小时 */
         const val CACHE_MS = 24 * 60 * 60 * 1000L
         private val GSON = com.google.gson.Gson()

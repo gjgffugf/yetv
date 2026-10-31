@@ -169,7 +169,20 @@ fun DetailScreen(app: YETVApp, onBack: () -> Unit) {
     }
 
     val item = info.item
-    val poster = item.poster.ifEmpty { base.poster }.ifEmpty { douban?.poster ?: "" }
+    val computedPoster = item.poster.ifEmpty { base.poster }.ifEmpty { douban?.poster ?: "" }
+    /**
+     * 切换源时海报保持不变：只认第一次成功加载出来的那张。
+     *
+     * 之前直接跟着 variantIndex 走，切源就换 URL，触发一次新的网络请求 + 解码，
+     * 海报会闪一下并重新等待。现在用状态锁定，切源不再重载。
+     */
+    var lockedPoster by remember { mutableStateOf("") }
+    LaunchedEffect(computedPoster) {
+        if (computedPoster.isNotEmpty() && lockedPoster.isEmpty()) {
+            lockedPoster = computedPoster
+        }
+    }
+    val poster = lockedPoster.ifEmpty { computedPoster }
     val showTitle = item.title.ifEmpty { base.title }.ifEmpty { douban?.title ?: "" }
     // 分集可能挂在 base 上（搜索结果自带），也可能来自详情
     val episodes = info.episodes.ifEmpty { base.episodes }

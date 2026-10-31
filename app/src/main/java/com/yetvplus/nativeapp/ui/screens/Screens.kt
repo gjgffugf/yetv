@@ -87,6 +87,7 @@ import com.yetvplus.nativeapp.ui.RefreshRate
 import com.yetvplus.nativeapp.ui.themeArgbState
 import com.yetvplus.nativeapp.data.SearchGroup
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.unit.LocalDensity
 
 // ---------------- 首页 ----------------
 
@@ -542,9 +543,16 @@ fun MineScreen(
                                     .background(LocalSurfaceLight.current)
                             ) {
                                 if (r.poster.isNotEmpty()) {
+                                    // 关键：显式指定目标尺寸，让 Coil 做降采样。
+                                    // 不指定的话会下载并解码**原图**（豆瓣海报常 1000x1400 以上），
+                                    // 而这里只要 46x64dp 的缩略图 —— 这就是历史记录海报慢的根因。
+                                    val density = LocalDensity.current
+                                    val pxW = with(density) { 46.dp.roundToPx() }
+                                    val pxH = with(density) { 64.dp.roundToPx() }
                                     SubcomposeAsyncImage(
                                         model = ImageRequest.Builder(LocalContext.current)
                                             .data(r.poster)
+                                            .size(pxW, pxH)
                                             .crossfade(true)
                                             .build(),
                                         contentDescription = null,

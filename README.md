@@ -734,6 +734,115 @@ import androidx.compose.runtime.setValue
 | **孤立 `private set` / `get`** | Expecting a member declaration |
 | **`by` 委托必须配 getValue / setValue** | MutableState 缺方法 |
 
+
+## 二·廿八、JdkImageTransform 处理 core-for-system-modules.jar 失败
+
+### 现象
+
+```
+Task :app:compileDebugJavaWithJavac FAILED
+JdkImageTransform ... core-for-system-modules.jar
+```
+
+日志里那些 `UnstableApi`、`FLAG_FULL_SCREEN`、`defaultDisplay` 之类只是**警告**，
+不影响出包；真正的失败点是这一条。
+
+### 原理
+
+`compileOptions.sourceCompatibility = 17` 时，AGP 会调用 JDK 自带的 **`jlink`**
+把 `android.jar` 打包成 `core-for-system-modules.jar` 给 javac 当系统模块。
+**JDK 里没有 jlink（或 `jdk.jlink` 模块缺失），这一步就崩** —— 这在 Termux
+上很常见，因为它的 JDK 包有时是精简版。
+
+### 解法（按推荐顺序）
+
+**① 先跑诊断**
+
+```bash
+bash build.sh
+```
+
+脚本会报告 JDK 版本、`jlink` 是否存在、可用磁盘，并给出对应建议。
+
+**② jlink 缺失 → 降到 Java 11**
+
+`gradle.properties` 里改一行：
+
+```
+yetv.java.version=11
+```
+
+设成 11 后 AGP 直接用 `android.jar` 当 bootclasspath，**不再需要 jlink**。
+
+**③ JDK 版本不对**
+
+AGP 8.1.4 **只支持 JDK 17**。若是 21/22，脚本会直接报错：
+
+```bash
+pkg install openjdk-17
+export JAVA_HOME=/data/data/com.termux/files/usr/lib/jvm/openjdk-17
+```
+
+**④ 变换缓存损坏**
+
+```bash
+bash build.sh clean   # 清 ~/.gradle/caches/transforms-2
+bash build.sh
+```
+
+**⑤ 磁盘不足**
+
+变换缓存需要 1G 以上空间，脚本会在低于 1.5G 时提醒。
+
+### 附：日志里的弃用警告不用管
+
+| 警告 | 说明 |
+|---|---|
+| `UnstableApi` | media3 标记，已用 `-opt-in` 全局放行 |
+| `FLAG_FULL_SCREEN` / `defaultDisplay` | Android 旧 API，仍可用 |
+| `outlinedTextFieldColors` | material3 实验性 API，已放行 |
+
+它们都不会导致构建失败。
+
+
+## 二·廿九、地址更换与海报优化（v1.0.5）
+
+### ① 默认服务器地址
+
+`Prefs.kt` 的 `DEFAULT_BASE` 改为 **`https://ytv.ffurry.cc.cd`**。
+（已登录过的设备地址存在本地，需要到设置里改或在启动加载时重新拉取。）
+
+### ② 历史记录海报加载慢
+
+**根因**：Coil 默认是按**原图尺寸**请求和解码的。豆瓣海报常 1000×1400 以上，
+而历史卡片只要 46×64dp —— 等于每次都在下载并解码十几倍体积的图，
+再交给 GPU 缩放，网络和解码时间都浪费了。
+
+**修法**：显式指定目标尺寸，让 Coil 走降采样：
+
+```kotlin
+val pxW = with(density) { 46.dp.roundToPx() }
+val pxH = with(density) { 64.dp.roundToPx() }
+ImageRequest.Builder(ctx).data(r.poster).size(pxW, pxH).crossfade(true).build()
+```
+
+配合已有的 80MB 磁盘缓存，二次进入基本是秒出。
+
+### ③ 详情页切源海报跟着变
+
+**根因**：`poster` 直接跟着 `variantIndex` 计算，切源就换 URL →
+触发一次新的网络请求 + 解码，海报闪一下并重新等待。
+
+**修法**：用状态锁定**第一次成功加载出来的那张**，之后切源不再重载：
+
+```kotlin
+var lockedPoster by remember { mutableStateOf("") }
+LaunchedEffect(computedPoster) {
+    if (computedPoster.isNotEmpty() && lockedPoster.isEmpty()) lockedPoster = computedPoster
+}
+val poster = lockedPoster.ifEmpty { computedPoster }
+```
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

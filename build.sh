@@ -77,6 +77,16 @@ else
   echo "执行方式: sh gradlew（gradlew 无执行位，改用 sh 解释）"
 fi
 
+# clean 模式：清掉 Gradle 变换缓存（JdkImageTransform 缓存损坏时必做）
+if [ "${1:-}" = "clean" ]; then
+  echo "── 清理变换缓存 ──"
+  rm -rf "${HOME}/.gradle/caches/transforms-2" 2>/dev/null
+  rm -rf "${HOME}/.gradle/caches/journal-1" 2>/dev/null
+  echo "已清理 ~/.gradle/caches/transforms-2"
+  echo "现在重新执行： bash build.sh"
+  exit 0
+fi
+
 echo "── 开始编译 ──"
 TASK="assembleDebug"
 [ "${1:-}" = "release" ] && TASK="assembleRelease"

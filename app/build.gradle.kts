@@ -56,13 +56,19 @@ android {
         }
     }
 
+    // Java 版本可配（gradle.properties 里的 yetv.java.version）。
+    // 设为 11 可避开 AGP 用 jlink 生成 core-for-system-modules.jar 的步骤，
+    // 用于绕开「JdkImageTransform 处理 core-for-system-modules.jar 失败」。
+    val javaVer = (project.findProperty("yetv.java.version") as String? ?: "17")
+    val javaVersion = if (javaVer == "11") JavaVersion.VERSION_11 else JavaVersion.VERSION_17
+
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = javaVersion
+        targetCompatibility = javaVersion
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = javaVer
         // material3 的部分 API（如 TextFieldDefaults.outlinedTextFieldColors、Slider）
         // 仍标记为 @ExperimentalMaterial3Api，全局放行，免得逐个文件加注解
         freeCompilerArgs += listOf(
