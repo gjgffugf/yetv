@@ -843,6 +843,34 @@ LaunchedEffect(computedPoster) {
 val poster = lockedPoster.ifEmpty { computedPoster }
 ```
 
+
+### ④ 编译修复：LocalDensity / roundToPx / size() 歧义
+
+上一轮用 Compose 的密度换算写降采样尺寸：
+
+```kotlin
+val density = LocalDensity.current
+val pxW = with(density) { 46.dp.roundToPx() }
+```
+
+日志报了三条错，其实是**一条**引起的连锁：
+
+| 报错 | 性质 |
+|---|---|
+| `Unresolved reference: LocalDensity` | 根因 |
+| `Unresolved reference: roundToPx` | 同上 |
+| `size()` 重载歧义 + 类型变量 R 推断不足 | pxW/pxH 变成错误类型后的连带 |
+
+**修法**：改用 Android 原生 API 换算，不碰 Compose 的密度相关符号：
+
+```kotlin
+val dm = LocalContext.current.resources.displayMetrics.density
+val pxW = (46 * dm).toInt()
+val pxH = (64 * dm).toInt()
+```
+
+pxW / pxH 是明确的 `Int` 后，`size(pxW, pxH)` 的重载歧义自然消失。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，
