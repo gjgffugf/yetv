@@ -905,6 +905,35 @@ pxW / pxH 是明确的 `Int` 后，`size(pxW, pxH)` 的重载歧义自然消失�
 完全隐藏进度条会让用户失去进度感知，显示完整控制条又容易误触。
 折中：底部只保留一条 2dp 高的细条，每 300ms 更新一次。
 
+
+## 二·卅一、播放器遮罩与锁定进度条（v1.0.5）
+
+### ① 去掉顶部/底部控制条的浅灰遮罩
+
+原来是整块的 `Color.Black.copy(alpha = 0.45f)` / `0.55f`，
+看起来就是糊在画面上的一层灰底。改为**渐变**，只在图标所在边缘加深：
+
+```kotlin
+// 顶部：自上而下
+Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent))
+// 底部：自下而上
+Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)))
+```
+
+好处：保证文字图标可辨认，同时画面中间完全不受遮挡。
+
+### ② 锁定后的 2px 进度条加缓存层
+
+三层自下而上叠加：
+
+| 层 | 颜色 | 含义 |
+|---|---|---|
+| 底 | 白 `alpha 0.22` | 轨道 |
+| 中 | 白 `alpha 0.55` | **已缓存**（buffed，浅白色） |
+| 顶 | 主题色 | **已播放** |
+
+缓存进度取 `player.bufferedPosition`，与播放进度同样每 300ms 刷新。
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

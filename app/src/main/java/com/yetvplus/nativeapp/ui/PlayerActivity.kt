@@ -61,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -686,11 +687,17 @@ private fun PlayerOverlay(
         Box(modifier = Modifier.fillMaxSize()) {
             // 顶部（锁定时一并隐藏）
             if (showTopBar && !locked) {
+                // 顶部：去掉整块的浅灰遮罩，改用自上而下的渐变，
+                // 只保证图标文字可辨认，不再糊一层灰底
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
-                        .background(Color.Black.copy(alpha = 0.45f))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent)
+                            )
+                        )
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -719,22 +726,33 @@ private fun PlayerOverlay(
                 // 锁定后底部仍保留一条 2px 的细进度条：
                 // 完全隐藏的话用户无法感知播放进度，但也不该显示完整控制条（会误触）
                 var lockPos by remember { mutableLongStateOf(0L) }
+                var lockBuf by remember { mutableLongStateOf(0L) }
                 var lockDur by remember { mutableLongStateOf(0L) }
                 LaunchedEffect(Unit) {
                     while (true) {
                         lockPos = player.currentPosition.coerceAtLeast(0L)
+                        lockBuf = player.bufferedPosition.coerceAtLeast(0L)
                         lockDur = player.duration.takeIf { it > 0 } ?: 0L
                         delay(300)
                     }
                 }
                 val ratio = if (lockDur > 0) (lockPos.toFloat() / lockDur).coerceIn(0f, 1f) else 0f
+                val bufRatio = if (lockDur > 0) (lockBuf.toFloat() / lockDur).coerceIn(0f, 1f) else 0f
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(2.dp)
                         .align(Alignment.BottomCenter)
-                        .background(Color.White.copy(alpha = 0.25f))
+                        .background(Color.White.copy(alpha = 0.22f))
                 ) {
+                    // 已缓存：浅白色（在播放进度下面那层）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fraction = bufRatio)
+                            .background(Color.White.copy(alpha = 0.55f))
+                    )
+                    // 已播放：主题色，压在缓存层上面
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -745,11 +763,16 @@ private fun PlayerOverlay(
             }
 
             // 底部控制条（锁定时整体不显示）
+            // 底部控制条：同样去掉整块灰底，改自下而上的渐变
             if (!locked) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .background(Color.Black.copy(alpha = 0.55f))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                        )
+                    )
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
