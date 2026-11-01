@@ -137,7 +137,8 @@ class MainActivity : ComponentActivity() {
             val cur = prefs.bgPath
             if (cur.isEmpty() || cur.startsWith("res://")) {
                 val picked = com.yetvplus.nativeapp.ui.screens.randomBuiltInBg(this)
-                if (picked.isNotEmpty()) prefs.bgPath = picked
+                // 没放 bg_1…bg_20 时回退到内置默认背景，避免 bgPath 一直为空
+                prefs.bgPath = picked.ifEmpty { "res://bg_default" }
             }
         }
         setContent {
@@ -230,9 +231,7 @@ private fun AppRoot() {
         Box(modifier = Modifier.fillMaxSize()) {
             // 背景图：选了就生效（不再需要开关）。
             // 没配置时保持纯色，随深色/浅色模式一起变。
-            if (app.prefs.bgPath.isNotEmpty()) {
-                AppBackground(app.prefs.bgPath, app.prefs.bgDim)
-            }
+            AppBackground(app.prefs.bgPath, app.prefs.bgDim)
 
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route

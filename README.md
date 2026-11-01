@@ -934,6 +934,45 @@ Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
 
 缓存进度取 `player.bufferedPosition`，与播放进度同样每 300ms 刷新。
 
+
+## 二·卅二、登录后背景变纯色
+
+### 现象
+
+登录页能看到背景，登录进主页后背景消失，只剩纯色；
+去「应用设置」里手动选一张又正常。
+
+### 根因：两个页面的兜底逻辑不一致
+
+`bgPath` 为空时（用户没在设置里选过图）：
+
+| 页面 | 原实现 | 结果 |
+|---|---|---|
+| 登录页 | `if (bgPath 非空) 背景 else 显示 R.drawable.bg_default` | **有兜底** → 看得到图 |
+| 主页 | `if (bgPath 非空) AppBackground(...)` | **没兜底** → 什么都不画 → 纯色 |
+
+而 `AppBackground` 开头是 `if (bgPath.isEmpty()) return`，等于空路径直接放弃绘制。
+所以"登录前有、登录后没"不是登录流程的问题，是两处兜底不对称。
+
+### 修法
+
+**① `AppBackground` 自己兜底**（`Common.kt`）：
+空路径时回退到 `res://bg_default`，动态查找，找不到就退化纯色不崩。
+
+**② 调用点全部去掉 `isNotEmpty()` 判断**：
+登录页、主页、播放页统一直接调 `AppBackground(prefs.bgPath, prefs.bgDim)`。
+
+**③ 启动随机逻辑兜底**（`MainActivity`）：
+没放 `bg_1…bg_20` 时不再返回空，改成 `"res://bg_default"`，
+保证 `bgPath` 不会一直为空。
+
+### 内置背景优先级
+
+1. 用户在设置里选过的相册图（优先级最高，随机逻辑不会覆盖）
+2. `bg_1.jpg` … `bg_20.jpg` 随机一张（每次启动换）
+3. `bg_default.jpg`
+4. 纯色（都没有时）
+
 ## 三、字段映射（重要）
 
 搜索与豆瓣接口的字段已按真实抓包对齐（见上一节）。剩下**未校准**的接口仍用多候选键回退解析，

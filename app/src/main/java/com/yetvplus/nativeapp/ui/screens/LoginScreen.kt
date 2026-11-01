@@ -111,22 +111,8 @@ fun LoginScreen(app: YETVApp, onSuccess: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         // 背景图：用户选过就用用户的，否则用内置默认图。
         // Crop 保证铺满不变形；输入法弹出时布局不动（Manifest 里是 adjustNothing）。
-        if (prefs.bgPath.isNotEmpty()) {
-            AppBackground(prefs.bgPath, prefs.bgDim)
-        } else {
-            Image(
-                painter = painterResource(id = R.drawable.bg_default),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            // 压暗一点，保证卡片上的文字可读
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = prefs.bgDim.coerceIn(0f, 0.85f)))
-            )
-        }
+        // 空路径由 AppBackground 自动回退到内置默认背景，不用在这里分叉
+        AppBackground(prefs.bgPath, prefs.bgDim)
 
         // 内容整体垂直居中
         Column(

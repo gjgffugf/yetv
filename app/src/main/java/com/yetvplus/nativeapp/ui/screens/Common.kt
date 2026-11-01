@@ -79,15 +79,26 @@ import androidx.compose.foundation.border
 /** 内置背景图的标记前缀：res://bg_3 表示用 drawable 里的 bg_3 */
 private const val RES_BG_PREFIX = "res://"
 
-/** 自定义背景图（本地文件）+ 暗化遮罩，全 App 生效 */
+/** 内置默认背景的资源名（`res/drawable-nodpi/bg_default.jpg`），找不到就不画 */
+private const val DEFAULT_BG_RES = "bg_default"
+
+/**
+ * 背景图（本地文件 / 内置资源）+ 暗化遮罩，全 App 生效。
+ *
+ * **空路径不再直接 return**：以前 bgPath 为空就什么都不画，于是登录页有内置图兜底、
+ * 主页却只剩纯色 —— 这就是「登录前能看到背景、登录后变成纯色」的原因。
+ * 现在统一回退到 `bg_default`，各页面表现一致。
+ */
 @Composable
 fun AppBackground(bgPath: String, dim: Float) {
-    if (bgPath.isEmpty()) return
+    // 没配置时回退到内置默认背景（动态查找，文件不存在就退化成纯色，不会崩）
+    val resolved = if (bgPath.isEmpty()) RES_BG_PREFIX + DEFAULT_BG_RES else bgPath
+    if (resolved.isEmpty()) return
 
     // 内置资源背景（多张随机时用这种形式）
-    if (bgPath.startsWith(RES_BG_PREFIX)) {
+    if (resolved.startsWith(RES_BG_PREFIX)) {
         val ctx = LocalContext.current
-        val name = bgPath.removePrefix(RES_BG_PREFIX)
+        val name = resolved.removePrefix(RES_BG_PREFIX)
         val id = ctx.resources.getIdentifier(name, "drawable", ctx.packageName)
         if (id != 0) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -108,7 +119,7 @@ fun AppBackground(bgPath: String, dim: Float) {
     }
 
     val bmp = try {
-        BitmapFactory.decodeFile(bgPath)
+        BitmapFactory.decodeFile(resolved)
     } catch (e: Exception) {
         null
     } ?: return
